@@ -1,15 +1,7 @@
-Create a file named `workflow.txt` in the root of the `reachinbox-email-scheduler` project.
+PROJECT PURPOSE
+A full-stack email scheduling system where users can log in, upload recipients, schedule emails, and monitor scheduled and sent emails.
 
-This file should document the complete end-to-end workflow and architecture of the project in simple but technically accurate language.
-
-Do not change any application code.
-
-Include these sections:
-
-1. PROJECT PURPOSE
-Explain that this is a full-stack email scheduling system where users can log in, upload recipients, schedule emails, and monitor scheduled and sent emails.
-
-2. TECHNOLOGY STACK
+TECHNOLOGY STACK
 
 Frontend:
 - React
@@ -34,9 +26,7 @@ Integrations:
 - Slack OAuth
 - Ethereal Email / Nodemailer
 
-3. COMPLETE EMAIL SCHEDULING FLOW
-
-Show this flow:
+COMPLETE EMAIL SCHEDULING FLOW
 
 User
 → Google Login
@@ -61,7 +51,7 @@ User
     → Job is delayed/rescheduled to next available window
     → Slack notification sent if Slack is connected
 
-4. DATABASE RESPONSIBILITIES
+DATABASE RESPONSIBILITIES
 
 PostgreSQL is the source of truth.
 
@@ -75,7 +65,7 @@ Store:
 - Idempotency keys
 - Slack connection details
 
-5. REDIS RESPONSIBILITIES
+REDIS RESPONSIBILITIES
 
 Redis is used for:
 - BullMQ job storage
@@ -83,9 +73,8 @@ Redis is used for:
 - Distributed rate-limit counters
 - Coordination that works across multiple workers/instances
 
-6. BULLMQ WORKFLOW
+BULLMQ WORKFLOW
 
-Explain:
 - API creates delayed jobs
 - Redis persists jobs
 - Worker processes jobs
@@ -94,9 +83,7 @@ Explain:
 - Jobs survive backend restarts
 - Idempotency prevents duplicate sends
 
-7. RATE LIMITING FLOW
-
-Show:
+RATE LIMITING FLOW
 
 Worker receives job
 → Check Redis counter using sender + current hour
@@ -107,20 +94,16 @@ Worker receives job
           → Reschedule/delay job
           → Notify Slack if connected
 
-Mention that limits are configurable through environment variables.
+Limits are configurable through environment variables.
 
-8. ELASTICSEARCH FLOW
-
-Explain:
+ELASTICSEARCH FLOW
 
 PostgreSQL is the source of truth
 → Important email fields are indexed in Elasticsearch
 → Dashboard search API queries Elasticsearch
 → Users can search scheduled and sent emails by recipient, subject, or other indexed fields.
 
-9. SERVER RESTART FLOW
-
-Explain:
+SERVER RESTART FLOW
 
 Server stops
 → PostgreSQL data remains persisted
@@ -130,9 +113,7 @@ Server stops
 → BullMQ continues processing delayed jobs
 → Previously sent jobs are not resent because of database status and idempotency checks.
 
-10. SLACK NOTIFICATION FLOW
-
-Show:
+SLACK NOTIFICATION FLOW
 
 User clicks Connect Slack
 → Slack OAuth authorization
@@ -142,10 +123,9 @@ User clicks Connect Slack
 → Backend sends real Slack API notification
 → If Slack is not connected, scheduler continues without failing.
 
-11. HIGH LOAD BEHAVIOR
+HIGH LOAD BEHAVIOR
 
-Explain how the system handles 1000+ emails scheduled around the same time:
-
+System handles 1000+ emails scheduled around the same time:
 - Jobs are persisted in Redis
 - BullMQ queues the jobs
 - Configurable worker concurrency controls parallel processing
@@ -154,9 +134,7 @@ Explain how the system handles 1000+ emails scheduled around the same time:
 - Excess jobs are rescheduled instead of dropped
 - Database and idempotency checks prevent duplicate sends
 
-12. FINAL SYSTEM ARCHITECTURE
-
-Include an ASCII diagram like:
+FINAL SYSTEM ARCHITECTURE
 
                     ┌──────────────────┐
                     │ React Dashboard  │
@@ -178,29 +156,33 @@ Include an ASCII diagram like:
                     ▼                     ▼
               Ethereal SMTP           Slack API
 
-13. CURRENT PROJECT STATUS
+MODULE: CORE EMAIL SCHEDULING
+- [x] Redis infrastructure
+- [x] BullMQ installation and configuration
+- [x] Email scheduling queue
+- [x] Delayed job scheduling
+- [x] PostgreSQL EmailJob persistence
+- [x] Email job status lifecycle (SCHEDULED -> PROCESSING -> SENT)
+- [x] Idempotency using idempotencyKey
+- [x] POST /api/emails/schedule
+- [x] GET /api/emails
+- [x] Email worker with configurable concurrency
+- [x] Test User and Sender seed script
+- [x] End-to-end scheduling test
+- [x] Duplicate/idempotency test
+- [x] TypeScript verification
 
-Include a checklist showing:
+CURRENT PROJECT STATUS
 
-[x] GitHub repository
-[x] Express + TypeScript backend
-[x] PostgreSQL Docker
-[x] Prisma database connection
-[x] Redis infrastructure
-[x] Elasticsearch infrastructure
-[ ] BullMQ scheduler
-[ ] Email worker
-[ ] Idempotency
-[ ] Rate limiting
-[ ] Ethereal Email
-[ ] Elasticsearch indexing
-[ ] Bull Board dashboard
-[ ] Google OAuth
-[ ] Slack OAuth
-[ ] Frontend
-[ ] Deployment
-[ ] README
-[ ] Demo video
+Completed:
+- Express + TypeScript backend
+- PostgreSQL + Prisma
+- Redis
+- Elasticsearch infrastructure
+- BullMQ email scheduling
 
-Keep workflow.txt readable, structured, and useful for project understanding and final review.
-Stop after creating only this documentation file.
+Current implementation:
+Emails are scheduled and processed successfully, but actual email delivery is still simulated.
+
+Next module:
+Real Email Delivery Integration
