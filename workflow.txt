@@ -156,41 +156,47 @@ FINAL SYSTEM ARCHITECTURE
                     ▼                     ▼
               Ethereal SMTP           Slack API
 
-MODULE: CORE EMAIL SCHEDULING
+MODULE 1 — Infrastructure
+- [x] Express + TypeScript backend
+- [x] PostgreSQL + Prisma
 - [x] Redis infrastructure
-- [x] BullMQ installation and configuration
-- [x] Email scheduling queue
-- [x] Delayed job scheduling
-- [x] PostgreSQL EmailJob persistence
-- [x] Email job status lifecycle (SCHEDULED -> PROCESSING -> SENT)
-- [x] Idempotency using idempotencyKey
-- [x] POST /api/emails/schedule
-- [x] GET /api/emails
-- [x] Email worker with configurable concurrency
-- [x] Test User and Sender seed script
-- [x] End-to-end scheduling test
-- [x] Duplicate/idempotency test
-- [x] TypeScript verification
+- [x] Elasticsearch infrastructure
+- [x] Docker Compose setup
 
-MODULE: REAL EMAIL SENDING WITH NODEMAILER + SMTP
+MODULE 2 — Email Scheduling
+- [x] EmailJob persistence
+- [x] Scheduled email API (POST /api/emails/schedule & GET /api/emails)
+- [x] BullMQ delayed jobs & Redis queue
+- [x] Email worker with configurable concurrency
+- [x] Idempotency using idempotencyKey
+
+MODULE 3 — Real Email Sending with Nodemailer + SMTP
 - [x] SMTP configuration via environment variables
 - [x] Reusable Nodemailer transport module with Ethereal fallback
 - [x] Real email sending integrated inside BullMQ worker
 - [x] State transitions: SCHEDULED -> PROCESSING -> SENT
-- [x] Failed delivery handling: PROCESSING -> FAILED
 - [x] sentAt timestamp updated on delivery
+
+MODULE 4 — Retry & Failure Handling
+- [x] BullMQ retry attempts (`EMAIL_MAX_ATTEMPTS`)
+- [x] Configurable max attempts & exponential backoff (`EMAIL_RETRY_DELAY`)
+- [x] Database attempt tracking (`attempts` field in EmailJob)
+- [x] Safe failure error handling (`lastError` sanitized message)
+- [x] Retry lifecycle (SCHEDULED / RETRYING -> PROCESSING -> SENT or FAILED)
+- [x] Final FAILED status when max attempts exhausted
 - [x] TypeScript verification (npx tsc --noEmit: 0 errors)
-- [x] End-to-end test result (MessageId & Ethereal Preview URL generated)
+- [x] End-to-end verification (Verified successful 1st attempt send & forced 3-attempt failure retry sequence)
 
 CURRENT PROJECT STATUS
 
 Completed:
 - Express + TypeScript backend
 - PostgreSQL + Prisma
-- Redis
+- Redis infrastructure
 - Elasticsearch infrastructure
-- BullMQ email scheduling
-- Real email delivery via Nodemailer + SMTP (with automated Ethereal test transport)
+- BullMQ email scheduling queue
+- Real email delivery via Nodemailer + SMTP
+- Retry & failure handling with exponential backoff & attempt tracking
 
 Next module:
-Automatic Retries / Rate Limiting Integration
+Hourly Rate Limiting

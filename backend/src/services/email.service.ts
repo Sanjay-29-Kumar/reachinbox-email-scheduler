@@ -4,6 +4,7 @@ import { emailQueue } from '../queues/email.queue';
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
   PROCESSING: 'PROCESSING',
+  RETRYING: 'RETRYING',
   SENT: 'SENT',
   FAILED: 'FAILED',
 } as const;
@@ -81,8 +82,10 @@ export async function scheduleEmail(input: ScheduleEmailInput) {
     throw error;
   }
 
-  // 5. Calculate delay and enqueue delayed job in BullMQ
+  // 5. Calculate delay and enqueue delayed job in BullMQ with retry options
   const delay = Math.max(0, scheduledDate.getTime() - Date.now());
+  const maxAttempts = parseInt(process.env.EMAIL_MAX_ATTEMPTS || '3', 10);
+  const retryDelay = parseInt(process.env.EMAIL_RETRY_DELAY || '5000', 10);
 
   try {
     const bullJob = await emailQueue.add(
@@ -91,6 +94,11 @@ export async function scheduleEmail(input: ScheduleEmailInput) {
       {
         delay,
         jobId: emailJob.id,
+        attempts: maxAttempts,
+        backoff: {
+          type: 'exponential',
+          delay: retryDelay,
+        },
       }
     );
 

@@ -10,6 +10,7 @@ datasource db {
 enum EmailJobStatus {
   SCHEDULED
   PROCESSING
+  RETRYING
   SENT
   FAILED
 }
@@ -49,6 +50,8 @@ model EmailJob {
   scheduledAt    DateTime
   sentAt         DateTime?
   status         EmailJobStatus @default(SCHEDULED)
+  attempts       Int            @default(0)
+  lastError      String?        @db.Text
   idempotencyKey String         @unique
   bullJobId      String?        @unique
   createdAt      DateTime       @default(now())
