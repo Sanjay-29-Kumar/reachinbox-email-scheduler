@@ -1,0 +1,206 @@
+Create a file named `workflow.txt` in the root of the `reachinbox-email-scheduler` project.
+
+This file should document the complete end-to-end workflow and architecture of the project in simple but technically accurate language.
+
+Do not change any application code.
+
+Include these sections:
+
+1. PROJECT PURPOSE
+Explain that this is a full-stack email scheduling system where users can log in, upload recipients, schedule emails, and monitor scheduled and sent emails.
+
+2. TECHNOLOGY STACK
+
+Frontend:
+- React
+- TypeScript
+- Tailwind CSS
+
+Backend:
+- Node.js
+- Express.js
+- TypeScript
+- Prisma
+
+Infrastructure:
+- PostgreSQL
+- Redis
+- BullMQ
+- Elasticsearch
+- Docker
+
+Integrations:
+- Google OAuth
+- Slack OAuth
+- Ethereal Email / Nodemailer
+
+3. COMPLETE EMAIL SCHEDULING FLOW
+
+Show this flow:
+
+User
+→ Google Login
+→ Dashboard
+→ Compose New Email
+→ Upload CSV/TXT recipients
+→ Set subject, body, start time, delay and hourly limit
+→ Frontend calls backend API
+→ Backend validates request
+→ Email jobs stored in PostgreSQL
+→ Idempotency key generated
+→ Jobs added to BullMQ/Redis as delayed jobs
+→ Scheduled email indexed in Elasticsearch
+→ BullMQ waits until scheduled time
+→ Worker picks up job
+→ Redis-backed hourly rate limit checked
+→ If limit available:
+    → Email sent through Ethereal SMTP
+    → Database updated to SENT
+    → Elasticsearch index updated
+→ If rate limit exceeded:
+    → Job is delayed/rescheduled to next available window
+    → Slack notification sent if Slack is connected
+
+4. DATABASE RESPONSIBILITIES
+
+PostgreSQL is the source of truth.
+
+Store:
+- Users
+- Senders
+- Email jobs
+- Status
+- Scheduled time
+- Sent time
+- Idempotency keys
+- Slack connection details
+
+5. REDIS RESPONSIBILITIES
+
+Redis is used for:
+- BullMQ job storage
+- Delayed job scheduling
+- Distributed rate-limit counters
+- Coordination that works across multiple workers/instances
+
+6. BULLMQ WORKFLOW
+
+Explain:
+- API creates delayed jobs
+- Redis persists jobs
+- Worker processes jobs
+- Configurable concurrency
+- Minimum delay between sends
+- Jobs survive backend restarts
+- Idempotency prevents duplicate sends
+
+7. RATE LIMITING FLOW
+
+Show:
+
+Worker receives job
+→ Check Redis counter using sender + current hour
+→ Limit available?
+    YES → Increment counter → Send email
+    NO → Do not drop job
+          → Calculate next available time
+          → Reschedule/delay job
+          → Notify Slack if connected
+
+Mention that limits are configurable through environment variables.
+
+8. ELASTICSEARCH FLOW
+
+Explain:
+
+PostgreSQL is the source of truth
+→ Important email fields are indexed in Elasticsearch
+→ Dashboard search API queries Elasticsearch
+→ Users can search scheduled and sent emails by recipient, subject, or other indexed fields.
+
+9. SERVER RESTART FLOW
+
+Explain:
+
+Server stops
+→ PostgreSQL data remains persisted
+→ Redis/BullMQ jobs remain persisted
+→ Docker volumes preserve infrastructure data
+→ Server/worker starts again
+→ BullMQ continues processing delayed jobs
+→ Previously sent jobs are not resent because of database status and idempotency checks.
+
+10. SLACK NOTIFICATION FLOW
+
+Show:
+
+User clicks Connect Slack
+→ Slack OAuth authorization
+→ Backend receives OAuth callback
+→ Slack token/connection stored securely
+→ Rate limit reached
+→ Backend sends real Slack API notification
+→ If Slack is not connected, scheduler continues without failing.
+
+11. HIGH LOAD BEHAVIOR
+
+Explain how the system handles 1000+ emails scheduled around the same time:
+
+- Jobs are persisted in Redis
+- BullMQ queues the jobs
+- Configurable worker concurrency controls parallel processing
+- Minimum delay throttles sending
+- Hourly rate limits prevent exceeding provider limits
+- Excess jobs are rescheduled instead of dropped
+- Database and idempotency checks prevent duplicate sends
+
+12. FINAL SYSTEM ARCHITECTURE
+
+Include an ASCII diagram like:
+
+                    ┌──────────────────┐
+                    │ React Dashboard  │
+                    └────────┬─────────┘
+                             │ API
+                    ┌────────▼─────────┐
+                    │ Express Backend  │
+                    └───┬────┬────┬────┘
+                        │    │    │
+          ┌─────────────┘    │    └──────────────┐
+          ▼                  ▼                   ▼
+     PostgreSQL            Redis           Elasticsearch
+     Source of Truth       BullMQ Jobs      Search Index
+                               │
+                               ▼
+                        BullMQ Worker
+                               │
+                    ┌──────────┴──────────┐
+                    ▼                     ▼
+              Ethereal SMTP           Slack API
+
+13. CURRENT PROJECT STATUS
+
+Include a checklist showing:
+
+[x] GitHub repository
+[x] Express + TypeScript backend
+[x] PostgreSQL Docker
+[x] Prisma database connection
+[x] Redis infrastructure
+[x] Elasticsearch infrastructure
+[ ] BullMQ scheduler
+[ ] Email worker
+[ ] Idempotency
+[ ] Rate limiting
+[ ] Ethereal Email
+[ ] Elasticsearch indexing
+[ ] Bull Board dashboard
+[ ] Google OAuth
+[ ] Slack OAuth
+[ ] Frontend
+[ ] Deployment
+[ ] README
+[ ] Demo video
+
+Keep workflow.txt readable, structured, and useful for project understanding and final review.
+Stop after creating only this documentation file.
