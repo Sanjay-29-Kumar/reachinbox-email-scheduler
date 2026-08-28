@@ -1,11 +1,29 @@
 import { Request, Response } from 'express';
 import { scheduleEmail, getEmailJobs } from '../services/email.service';
+import prisma from '../lib/prisma';
 
 export async function scheduleEmailHandler(req: Request, res: Response) {
   try {
     const { userId, senderId, recipientEmail, subject, body, scheduledAt, idempotencyKey } = req.body;
 
-    // Basic Validations
+    if (!idempotencyKey || typeof idempotencyKey !== 'string') {
+      return res.status(400).json({ success: false, message: 'idempotencyKey is required' });
+    }
+
+    // 1. Idempotency Check: Return existing record if idempotencyKey already processed
+    const existingJob = await prisma.emailJob.findUnique({
+      where: { idempotencyKey },
+    });
+
+    if (existingJob) {
+      return res.status(200).json({
+        success: true,
+        message: 'Email job already scheduled',
+        data: existingJob,
+      });
+    }
+
+    // 2. Input Validations
     if (!userId || typeof userId !== 'string') {
       return res.status(400).json({ success: false, message: 'userId is required' });
     }
@@ -26,9 +44,6 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
     }
     if (new Date(scheduledAt).getTime() <= Date.now()) {
       return res.status(400).json({ success: false, message: 'scheduledAt must be a future date' });
-    }
-    if (!idempotencyKey || typeof idempotencyKey !== 'string') {
-      return res.status(400).json({ success: false, message: 'idempotencyKey is required' });
     }
 
     const emailJob = await scheduleEmail({
