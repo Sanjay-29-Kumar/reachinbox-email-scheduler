@@ -172,6 +172,16 @@ MODULE: CORE EMAIL SCHEDULING
 - [x] Duplicate/idempotency test
 - [x] TypeScript verification
 
+MODULE: REAL EMAIL SENDING WITH NODEMAILER + SMTP
+- [x] SMTP configuration via environment variables
+- [x] Reusable Nodemailer transport module with Ethereal fallback
+- [x] Real email sending integrated inside BullMQ worker
+- [x] State transitions: SCHEDULED -> PROCESSING -> SENT
+- [x] Failed delivery handling: PROCESSING -> FAILED
+- [x] sentAt timestamp updated on delivery
+- [x] TypeScript verification (npx tsc --noEmit: 0 errors)
+- [x] End-to-end test result (MessageId & Ethereal Preview URL generated)
+
 CURRENT PROJECT STATUS
 
 Completed:
@@ -180,9 +190,7 @@ Completed:
 - Redis
 - Elasticsearch infrastructure
 - BullMQ email scheduling
-
-Current implementation:
-Emails are scheduled and processed successfully, but actual email delivery is still simulated.
+- Real email delivery via Nodemailer + SMTP (with automated Ethereal test transport)
 
 Next module:
-Real Email Delivery Integration
+Automatic Retries / Rate Limiting Integration

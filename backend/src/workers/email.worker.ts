@@ -5,6 +5,7 @@ import { Worker, Job } from 'bullmq';
 import { EMAIL_QUEUE_NAME, EmailJobData } from '../queues/email.queue';
 import { redisConnectionOptions } from '../lib/redis';
 import prisma from '../lib/prisma';
+import { sendEmail } from '../lib/email';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -61,18 +62,41 @@ export const emailWorker = new Worker<EmailJobData>(
       return;
     }
 
-    console.log(`[Worker] Processing email for recipient: ${emailJob.recipientEmail}, Subject: "${emailJob.subject}"`);
+    console.log(`[Worker] Processing real email send for recipient: ${emailJob.recipientEmail}, Subject: "${emailJob.subject}"`);
 
-    // 5. Simulation: Update status to SENT and set sentAt to current time
-    await prisma.emailJob.update({
-      where: { id: emailJobId },
-      data: {
-        status: EmailJobStatus.SENT,
-        sentAt: new Date(),
-      },
-    });
+    // 5. Call Real Email Sending Service
+    try {
+      await sendEmail({
+        to: emailJob.recipientEmail,
+        subject: emailJob.subject,
+        text: emailJob.body,
+      });
 
-    console.log(`[Worker] Successfully processed and marked EmailJob ${emailJobId} as SENT.`);
+      // 6. On Success: Update status to SENT and set sentAt
+      await prisma.emailJob.update({
+        where: { id: emailJobId },
+        data: {
+          status: EmailJobStatus.SENT,
+          sentAt: new Date(),
+        },
+      });
+
+      console.log(`[Worker] Successfully sent email and updated EmailJob ${emailJobId} to SENT.`);
+    } catch (sendError: any) {
+      // 7. On Failure: Update status to FAILED
+      const errorMessage = sendError instanceof Error ? sendError.message : 'Unknown email send error';
+      console.error(`[Worker Error] Failed to send email for EmailJob ${emailJobId}: ${errorMessage}`);
+
+      await prisma.emailJob.update({
+        where: { id: emailJobId },
+        data: {
+          status: EmailJobStatus.FAILED,
+        },
+      });
+
+      // Throw error so BullMQ marks job failed
+      throw new Error(`Email delivery failed for EmailJob ${emailJobId}`);
+    }
   },
   {
     connection: redisConnectionOptions,
@@ -81,5 +105,5 @@ export const emailWorker = new Worker<EmailJobData>(
 );
 
 emailWorker.on('failed', (job, err) => {
-  console.error(`[Worker Error] Job ${job?.id} failed with error:`, err);
+  console.error(`[Worker Event] Job ${job?.id} failed:`, err.message);
 });
