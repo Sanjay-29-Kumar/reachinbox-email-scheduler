@@ -57,9 +57,9 @@ export async function googleCallbackHandler(req: Request, res: Response) {
     const token = generateAuthToken(user);
 
     // 5. Check if frontend redirect is requested
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     if (req.headers.accept?.includes('text/html')) {
-      return res.redirect(`${frontendUrl}/auth/callback?token=${token}&userId=${user.id}`);
+      return res.redirect(`${frontendUrl}?token=${token}&userId=${user.id}`);
     }
 
     return res.status(200).json({
