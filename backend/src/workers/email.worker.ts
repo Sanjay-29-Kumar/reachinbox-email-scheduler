@@ -8,6 +8,13 @@ import prisma from '../lib/prisma';
 import { sendEmail } from '../lib/email';
 import { consumeRateLimitQuota, getMsUntilNextHour } from '../lib/rateLimiter';
 import { updateEmailJobInElasticsearch } from '../services/elasticsearch.service';
+import {
+  incrementEmailsSent,
+  incrementEmailsFailed,
+  incrementEmailsRetried,
+  incrementEmailsRateLimited,
+  startProcessingTimer,
+} from '../lib/metrics';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -28,6 +35,8 @@ export const emailWorker = new Worker<EmailJobData>(
     const { emailJobId } = job.data;
     const currentAttempt = job.attemptsMade + 1;
     const maxAttempts = job.opts.attempts || parseInt(process.env.EMAIL_MAX_ATTEMPTS || '3', 10);
+
+    const stopTimer = startProcessingTimer();
 
     console.log(`[Worker] Picked up job ${job.id} for EmailJobId: ${emailJobId} (Attempt ${currentAttempt}/${maxAttempts})`);
 
@@ -62,6 +71,9 @@ export const emailWorker = new Worker<EmailJobData>(
       const nextExecutionDate = new Date(Date.now() + delayMs);
 
       console.log(`[Worker RateLimit] Sender ${emailJob.senderId} reached hourly limit (${maxEmailsPerHour}/hr). Rescheduling EmailJob ${emailJobId} for ${nextExecutionDate.toISOString()} (delay: ${delayMs}ms).`);
+
+      // Increment Rate Limited Prometheus Metric Counter
+      incrementEmailsRateLimited();
 
       // Reschedule job in BullMQ for next hour without marking FAILED or consuming retry attempts
       const retryDelay = parseInt(process.env.EMAIL_RETRY_DELAY || '5000', 10);
@@ -145,6 +157,10 @@ export const emailWorker = new Worker<EmailJobData>(
         },
       });
 
+      // Record Metrics (Observe Duration & Increment Sent Counter)
+      stopTimer();
+      incrementEmailsSent();
+
       // Sync SENT status to Elasticsearch
       updateEmailJobInElasticsearch(emailJobId, {
         status: EmailJobStatus.SENT,
@@ -168,6 +184,9 @@ export const emailWorker = new Worker<EmailJobData>(
           },
         });
 
+        // Increment Retried Prometheus Metric Counter
+        incrementEmailsRetried();
+
         updateEmailJobInElasticsearch(emailJobId, {
           status: EmailJobStatus.RETRYING,
           lastError: errorMessage,
@@ -181,6 +200,10 @@ export const emailWorker = new Worker<EmailJobData>(
             lastError: errorMessage,
           },
         });
+
+        // Record Metrics (Observe Duration & Increment Failed Counter)
+        stopTimer();
+        incrementEmailsFailed();
 
         updateEmailJobInElasticsearch(emailJobId, {
           status: EmailJobStatus.FAILED,

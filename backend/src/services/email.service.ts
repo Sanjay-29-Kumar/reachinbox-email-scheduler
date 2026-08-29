@@ -1,6 +1,7 @@
 import prisma from '../lib/prisma';
 import { emailQueue } from '../queues/email.queue';
 import { indexEmailJob, updateEmailJobInElasticsearch } from './elasticsearch.service';
+import { incrementEmailsScheduled, incrementEmailsCancelled } from '../lib/metrics';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -110,7 +111,10 @@ export async function scheduleEmail(input: ScheduleEmailInput) {
       data: { bullJobId: String(bullJob.id) },
     });
 
-    // 7. Index in Elasticsearch safely (try/catch ensures ES failure never breaks core flow)
+    // 7. Increment Prometheus Metrics Counter
+    incrementEmailsScheduled();
+
+    // 8. Index in Elasticsearch safely (try/catch ensures ES failure never breaks core flow)
     try {
       await indexEmailJob(updatedJob);
     } catch (esErr) {
@@ -176,7 +180,10 @@ export async function cancelEmailJob(emailJobId: string) {
     },
   });
 
-  // 5. Update status to CANCELLED in Elasticsearch safely
+  // 5. Increment Prometheus Cancelled Counter
+  incrementEmailsCancelled();
+
+  // 6. Update status to CANCELLED in Elasticsearch safely
   try {
     await updateEmailJobInElasticsearch(emailJobId, { status: EmailJobStatus.CANCELLED });
   } catch (esErr) {

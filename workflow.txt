@@ -213,6 +213,17 @@ MODULE 7 — Elasticsearch Indexing & Search API
 - [x] Safe error handling when Elasticsearch is offline
 - [x] Verified directly on raw Elasticsearch cluster and via REST endpoints
 
+MODULE 8 — Observability & Metrics
+- [x] Prometheus metrics module (`backend/src/lib/metrics.ts`) using `prom-client`
+- [x] Standard process metrics (`collectDefaultMetrics`)
+- [x] Custom Prometheus Counters: `emails_scheduled_total`, `emails_sent_total`, `emails_failed_total`, `emails_retried_total`, `emails_cancelled_total`, `emails_rate_limited_total`
+- [x] Custom Prometheus Histogram: `email_processing_duration_seconds`
+- [x] Custom Prometheus Gauges: `email_queue_waiting`, `email_queue_active`, `email_queue_delayed`
+- [x] Metrics Endpoint: `GET /metrics` returning Prometheus text format (200 OK)
+- [x] Workflow Integration in scheduling service & worker processing loop
+- [x] Error isolation ensuring metrics failures never affect core email delivery
+- [x] Automated test script (`npm run test:metrics`)
+
 CURRENT PROJECT STATUS
 
 Completed:
@@ -220,6 +231,7 @@ Completed:
 - PostgreSQL + Prisma
 - Redis infrastructure
 - Elasticsearch infrastructure & full-text search API
+- Prometheus metrics & observability endpoint (`GET /metrics`)
 - BullMQ email scheduling queue
 - Real email delivery via Nodemailer + SMTP
 - Retry & failure handling with exponential backoff

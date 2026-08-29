@@ -10,6 +10,7 @@
     "test:ratelimit": "npx tsx src/scripts/testRateLimiter.ts",
     "es:index": "npx tsx src/scripts/initElasticsearch.ts",
     "test:es": "npx tsx src/scripts/testElasticsearch.ts",
+    "test:metrics": "npx tsx src/scripts/testMetrics.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -27,6 +28,7 @@
     "express": "^5.2.1",
     "ioredis": "^6.0.0",
     "nodemailer": "^9.0.6",
+    "prom-client": "^15.1.3",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
