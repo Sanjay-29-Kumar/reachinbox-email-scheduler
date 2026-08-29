@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { SearchBar } from './components/SearchBar';
 import { LoginPage } from './pages/LoginPage';
@@ -12,81 +12,14 @@ import {
   searchEmailJobs,
   cancelEmailJob,
   getGoogleAuthUrl,
+  getHealth,
 } from './services/api';
 import type {
   UserProfile,
   ConnectedAccount,
   EmailJob,
+  HealthStatus,
 } from './services/api';
-
-// Initial Mock Datasets matching Screenshots 2, 3, 4
-const INITIAL_SCHEDULED_EMAILS: EmailJob[] = [
-  {
-    id: 'sched-1',
-    userId: 'usr-1',
-    senderId: 'snd-1',
-    recipientEmail: 'john.smith@domain.io',
-    subject: 'Meeting follow-up - Scheduled',
-    body: 'Hi John, just wanted to follow up on our meeting yesterday and share the next action steps we discussed regarding the project launch.',
-    scheduledAt: new Date(Date.now() + 1000 * 60 * 60 * 14).toISOString(),
-    status: 'SCHEDULED',
-    attempts: 0,
-    idempotencyKey: 'idemp-sched-1',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    starred: false,
-  },
-  {
-    id: 'sched-2',
-    userId: 'usr-1',
-    senderId: 'snd-1',
-    recipientEmail: 'olive@domain.io',
-    subject: "Ramit, great to meet you - you'll love it",
-    body: 'Hi Olive, just wanted to follow up on our meeting and see if you had any questions regarding the proposal we sent over.',
-    scheduledAt: new Date(Date.now() + 1000 * 60 * 60 * 28).toISOString(),
-    status: 'SCHEDULED',
-    attempts: 0,
-    idempotencyKey: 'idemp-sched-2',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    starred: false,
-  },
-];
-
-const INITIAL_SENT_EMAILS: EmailJob[] = [
-  {
-    id: 'sent-1',
-    userId: 'usr-1',
-    senderId: 'snd-1',
-    recipientEmail: 'sarah.wilson@domain.io',
-    subject: 'Re: Project Update',
-    body: 'Thanks for the update, Sarah. Looks good! We are ready to proceed with the next deployment phase.',
-    scheduledAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    sentAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    status: 'SENT',
-    attempts: 1,
-    idempotencyKey: 'idemp-sent-1',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    starred: false,
-  },
-  {
-    id: 'sent-2',
-    userId: 'usr-1',
-    senderId: 'snd-1',
-    recipientEmail: 'support@reachinbox.ai',
-    subject: 'Issue with login',
-    body: 'I am having trouble logging in to the dashboard with my secondary credentials. Could you please investigate?',
-    scheduledAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    sentAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    status: 'SENT',
-    attempts: 1,
-    idempotencyKey: 'idemp-sent-2',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    starred: false,
-  },
-];
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -95,32 +28,18 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState<'scheduled' | 'sent'>('scheduled');
   const [currentView, setCurrentView] = useState<'list' | 'detail' | 'compose'>('list');
-  const [selectedEmail, setSelectedEmail] = useState<EmailJob | null>(INITIAL_SCHEDULED_EMAILS[0]);
+  const [selectedEmail, setSelectedEmail] = useState<EmailJob | null>(null);
 
-  const [user, setUser] = useState<UserProfile | null>({
-    id: 'usr_default',
-    name: 'Oliver Brown',
-    email: 'oliver.brown@domain.io',
-  });
-
-  const [accounts, setAccounts] = useState<ConnectedAccount[]>([
-    {
-      id: 'acc-1',
-      userId: 'usr_default',
-      provider: 'google',
-      email: 'oliver.brown@domain.io',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-  ]);
-
-  const [emailJobs, setEmailJobs] = useState<EmailJob[]>([
-    ...INITIAL_SCHEDULED_EMAILS,
-    ...INITIAL_SENT_EMAILS,
-  ]);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [emailJobs, setEmailJobs] = useState<EmailJob[]>([]);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const pollIntervalRef = useRef<number | null>(null);
 
   // Check URL query parameters for Google OAuth callback token
   useEffect(() => {
@@ -131,33 +50,62 @@ export function App() {
       localStorage.setItem('reachinbox_token', token);
       setIsAuthenticated(true);
       window.history.replaceState({}, document.title, window.location.pathname);
-      loadUserData();
     }
   }, []);
 
-  const loadUserData = async () => {
+  const loadBackendData = useCallback(async () => {
     try {
-      const [currentUser, connectedAccs, serverEmails] = await Promise.all([
+      const [currentUser, connectedAccs, serverEmails, healthStatus] = await Promise.all([
         getCurrentUser(),
         getConnectedAccounts(),
         getEmailJobs(),
+        getHealth(),
       ]);
 
       if (currentUser) setUser(currentUser);
-      if (connectedAccs.length > 0) setAccounts(connectedAccs);
-      if (serverEmails.length > 0) {
-        setEmailJobs(serverEmails);
-      }
+      setAccounts(connectedAccs);
+      setEmailJobs(serverEmails);
+      if (healthStatus) setHealth(healthStatus);
     } catch (err) {
-      console.warn('Failed to load initial data from server:', err);
+      console.warn('Backend data load error:', err);
     }
-  };
+  }, []);
 
+  // Initial Load
   useEffect(() => {
     if (isAuthenticated) {
-      loadUserData();
+      setIsLoading(true);
+      loadBackendData().finally(() => setIsLoading(false));
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadBackendData]);
+
+  // Periodic Polling for Real-Time Status Transitions (Every 3s when active jobs exist)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const hasActiveJobs = emailJobs.some(
+      (job) => job.status === 'SCHEDULED' || job.status === 'PROCESSING' || job.status === 'RETRYING'
+    );
+
+    if (hasActiveJobs || isRefreshing) {
+      pollIntervalRef.current = window.setInterval(async () => {
+        try {
+          const freshEmails = await getEmailJobs();
+          setEmailJobs(freshEmails);
+          const freshHealth = await getHealth();
+          if (freshHealth) setHealth(freshHealth);
+        } catch (pollErr) {
+          console.warn('Background poll error:', pollErr);
+        }
+      }, 3000);
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [isAuthenticated, emailJobs, isRefreshing]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -167,10 +115,10 @@ export function App() {
         setEmailJobs(results);
       } else {
         const emails = await getEmailJobs();
-        if (emails.length > 0) {
-          setEmailJobs(emails);
-        }
+        setEmailJobs(emails);
       }
+      const freshHealth = await getHealth();
+      if (freshHealth) setHealth(freshHealth);
     } catch (err) {
       console.warn('Refresh error:', err);
     } finally {
@@ -182,28 +130,27 @@ export function App() {
     setSearchQuery(query);
     if (!query.trim()) {
       const emails = await getEmailJobs();
-      if (emails.length > 0) setEmailJobs(emails);
+      setEmailJobs(emails);
       return;
     }
 
     try {
       const searchResults = await searchEmailJobs(query);
-      if (searchResults.length > 0) {
-        setEmailJobs(searchResults);
-      }
+      setEmailJobs(searchResults);
     } catch (err) {
-      console.warn('Search API failed, fallback to local filtering:', err);
+      console.warn('Elasticsearch search error, falling back to local filter:', err);
     }
   };
 
   const handleCancelEmail = async (id: string) => {
     try {
-      await cancelEmailJob(id);
-      setEmailJobs((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, status: 'CANCELLED' } : e))
-      );
+      const success = await cancelEmailJob(id);
+      if (success) {
+        const refreshed = await getEmailJobs();
+        setEmailJobs(refreshed);
+      }
     } catch (err) {
-      console.error('Cancel failed:', err);
+      console.error('Cancel request failed:', err);
     }
   };
 
@@ -228,7 +175,7 @@ export function App() {
     setCurrentView('list');
   };
 
-  // Filter emails for active tab and search query
+  // Real Database Counts
   const scheduledEmails = emailJobs.filter(
     (e) => e.status === 'SCHEDULED' || e.status === 'PROCESSING' || e.status === 'RETRYING'
   );
@@ -265,7 +212,7 @@ export function App() {
             onEmailScheduled={() => {
               setCurrentView('list');
               setActiveTab('scheduled');
-              loadUserData();
+              loadBackendData();
             }}
             user={user}
             accounts={accounts}
@@ -283,8 +230,10 @@ export function App() {
           <EmailDetailView
             email={selectedEmail}
             onBack={() => setCurrentView('list')}
-            onDelete={(id) => {
-              setEmailJobs((prev) => prev.filter((e) => e.id !== id));
+            onDelete={async (id) => {
+              await cancelEmailJob(id);
+              const refreshed = await getEmailJobs();
+              setEmailJobs(refreshed);
               setCurrentView('list');
             }}
           />
@@ -293,10 +242,10 @@ export function App() {
     );
   }
 
-  // Default Dashboard View with Left Sidebar
+  // Default Dashboard View with Left Sidebar (Screenshots 2 & 3)
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      {/* Left Sidebar (Screenshot 2 and 3) */}
+      {/* Left Sidebar */}
       <Sidebar
         activeTab={activeTab}
         onTabChange={(tab) => {
@@ -306,8 +255,9 @@ export function App() {
         onComposeClick={() => setCurrentView('compose')}
         user={user}
         accounts={accounts}
-        scheduledCount={scheduledEmails.length || 12}
-        sentCount={sentEmails.length || 785}
+        scheduledCount={scheduledEmails.length}
+        sentCount={sentEmails.length}
+        health={health}
         onConnectGoogle={handleConnectGoogle}
         onLogout={handleLogout}
       />
@@ -336,6 +286,7 @@ export function App() {
           <EmailListView
             type={activeTab}
             emails={displayedEmails}
+            loading={isLoading}
             onSelectEmail={(email) => {
               setSelectedEmail(email);
               setCurrentView('detail');

@@ -12,7 +12,7 @@ const app: Application = express();
 const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
 app.use(
   cors({
-    origin: allowedOrigin === '*' ? true : [allowedOrigin, 'http://localhost:3000', 'http://localhost:5173'],
+    origin: allowedOrigin === '*' ? true : [allowedOrigin, 'http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key'],
     credentials: true,

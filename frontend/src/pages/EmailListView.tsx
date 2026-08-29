@@ -1,10 +1,11 @@
 import React from 'react';
-import { Star, Clock, Trash2 } from 'lucide-react';
+import { Star, Clock, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 import type { EmailJob } from '../services/api';
 
 interface EmailListViewProps {
   type: 'scheduled' | 'sent';
   emails: EmailJob[];
+  loading?: boolean;
   onSelectEmail: (email: EmailJob) => void;
   onCancelEmail?: (id: string) => void;
   onToggleStar?: (id: string) => void;
@@ -13,6 +14,7 @@ interface EmailListViewProps {
 export const EmailListView: React.FC<EmailListViewProps> = ({
   type,
   emails,
+  loading = false,
   onSelectEmail,
   onCancelEmail,
   onToggleStar,
@@ -27,6 +29,24 @@ export const EmailListView: React.FC<EmailListViewProps> = ({
       return dateStr;
     }
   };
+
+  if (loading && emails.length === 0) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '50vh',
+          color: '#9CA3AF',
+        }}
+      >
+        <Loader2 size={32} className="animate-spin" style={{ marginBottom: '12px', color: '#00A859' }} />
+        <div style={{ fontSize: '14px', fontWeight: 500 }}>Loading emails from backend...</div>
+      </div>
+    );
+  }
 
   if (emails.length === 0) {
     return (
@@ -93,8 +113,8 @@ export const EmailListView: React.FC<EmailListViewProps> = ({
               To: {formattedRecipient}
             </div>
 
-            {/* Badge */}
-            {type === 'scheduled' ? (
+            {/* Status Badge */}
+            {email.status === 'SCHEDULED' && (
               <div
                 style={{
                   display: 'flex',
@@ -112,7 +132,41 @@ export const EmailListView: React.FC<EmailListViewProps> = ({
                 <Clock size={11} />
                 <span>{formatScheduledTime(email.scheduledAt)}</span>
               </div>
-            ) : (
+            )}
+
+            {email.status === 'PROCESSING' && (
+              <div
+                style={{
+                  backgroundColor: '#E0F2FE',
+                  color: '#0284C7',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '9999px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Processing...
+              </div>
+            )}
+
+            {email.status === 'RETRYING' && (
+              <div
+                style={{
+                  backgroundColor: '#FEF3C7',
+                  color: '#B45309',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '9999px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Retrying (Attempt {email.attempts})
+              </div>
+            )}
+
+            {email.status === 'SENT' && (
               <div
                 style={{
                   backgroundColor: '#F3F4F6',
@@ -125,6 +179,42 @@ export const EmailListView: React.FC<EmailListViewProps> = ({
                 }}
               >
                 Sent
+              </div>
+            )}
+
+            {email.status === 'FAILED' && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: '#FEE2E2',
+                  color: '#B91C1C',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '9999px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <AlertCircle size={11} />
+                <span>Failed</span>
+              </div>
+            )}
+
+            {email.status === 'CANCELLED' && (
+              <div
+                style={{
+                  backgroundColor: '#F3F4F6',
+                  color: '#9CA3AF',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  padding: '3px 8px',
+                  borderRadius: '9999px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Cancelled
               </div>
             )}
 
@@ -158,7 +248,7 @@ export const EmailListView: React.FC<EmailListViewProps> = ({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {type === 'scheduled' && onCancelEmail && (
+              {email.status === 'SCHEDULED' && onCancelEmail && (
                 <button
                   title="Cancel scheduled send"
                   onClick={() => onCancelEmail(email.id)}

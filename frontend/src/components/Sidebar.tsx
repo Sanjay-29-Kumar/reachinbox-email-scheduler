@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Clock, Send, ChevronDown, LogOut, CheckCircle2, Link2 } from 'lucide-react';
-import type { UserProfile, ConnectedAccount } from '../services/api';
+import { Clock, Send, ChevronDown, LogOut, CheckCircle2, Link2, Activity } from 'lucide-react';
+import type { UserProfile, ConnectedAccount, HealthStatus } from '../services/api';
 
 interface SidebarProps {
   activeTab: 'scheduled' | 'sent';
@@ -10,6 +10,7 @@ interface SidebarProps {
   accounts: ConnectedAccount[];
   scheduledCount: number;
   sentCount: number;
+  health: HealthStatus | null;
   onConnectGoogle: () => void;
   onLogout: () => void;
 }
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   accounts,
   scheduledCount,
   sentCount,
+  health,
   onConnectGoogle,
   onLogout,
 }) => {
@@ -30,6 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const userName = user?.name || 'Oliver Brown';
   const userEmail = user?.email || (accounts[0]?.email || 'oliver.brown@domain.io');
   const userAvatar = user?.avatarUrl;
+
+  const isHealthy = health?.status === 'ok' || (health?.database === 'connected' && health?.redis === 'connected');
 
   return (
     <aside
@@ -167,24 +171,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div style={{ padding: '6px 8px', fontSize: '11px', fontWeight: 600, color: '#9CA3AF' }}>
               CONNECTED ACCOUNTS ({accounts.length})
             </div>
-            {accounts.map((acc) => (
-              <div
-                key={acc.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 8px',
-                  fontSize: '12px',
-                  color: '#374151',
-                }}
-              >
-                <CheckCircle2 size={14} color="#00A859" />
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {acc.email}
-                </span>
+            {accounts.length === 0 ? (
+              <div style={{ padding: '4px 8px', fontSize: '11px', color: '#9CA3AF' }}>
+                No Gmail accounts connected
               </div>
-            ))}
+            ) : (
+              accounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 8px',
+                    fontSize: '12px',
+                    color: '#374151',
+                  }}
+                >
+                  <CheckCircle2 size={14} color="#00A859" />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {acc.email}
+                  </span>
+                </div>
+              ))
+            )}
             <div style={{ height: '1px', backgroundColor: '#F3F4F6', margin: '4px 0' }} />
             <button
               onClick={() => {
@@ -275,7 +285,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </span>
       </div>
 
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
         {/* Scheduled Nav Item */}
         <div
           onClick={() => onTabChange('scheduled')}
@@ -360,6 +370,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </span>
         </div>
       </nav>
+
+      {/* System Health Status Footer */}
+      <div
+        style={{
+          borderTop: '1px solid #F3F4F6',
+          paddingTop: '12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', color: '#6B7280' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Activity size={12} color={isHealthy ? '#00A859' : '#EF4444'} />
+            <span>System Health</span>
+          </div>
+          <span style={{ fontWeight: 600, color: isHealthy ? '#00A859' : '#EF4444' }}>
+            {isHealthy ? 'Online' : 'Degraded'}
+          </span>
+        </div>
+        {health && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#9CA3AF' }}>
+            <span>DB: {health.database}</span>
+            <span>Redis: {health.redis}</span>
+            <span>ES: {health.elasticsearch}</span>
+          </div>
+        )}
+      </div>
     </aside>
   );
 };

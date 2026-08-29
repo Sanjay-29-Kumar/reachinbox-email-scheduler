@@ -1,14 +1,15 @@
 import { Request, Response } from 'express';
 import { scheduleEmail, getEmailJobs, cancelEmailJob, EmailJobStatus } from '../services/email.service';
 import { searchEmailJobs } from '../services/elasticsearch.service';
+import { emailQueue } from '../queues/email.queue';
 import prisma from '../lib/prisma';
 
 export async function scheduleEmailHandler(req: Request, res: Response) {
   try {
-    const { userId, senderId, recipientEmail, subject, body, scheduledAt, idempotencyKey } = req.body;
+    let { userId, senderId, recipientEmail, subject, body, scheduledAt, idempotencyKey } = req.body;
 
     if (!idempotencyKey || typeof idempotencyKey !== 'string') {
-      return res.status(400).json({ success: false, message: 'idempotencyKey is required' });
+      idempotencyKey = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     }
 
     // 1. Idempotency Check: Return existing record if idempotencyKey already processed
@@ -24,13 +25,57 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
       });
     }
 
-    // 2. Input Validations
-    if (!userId || typeof userId !== 'string') {
-      return res.status(400).json({ success: false, message: 'userId is required' });
+    // 2. User & Sender Auto-Resolution (fallback to authenticated user or default DB user/sender)
+    if (!userId) {
+      userId = (req as any).user?.userId;
     }
-    if (!senderId || typeof senderId !== 'string') {
-      return res.status(400).json({ success: false, message: 'senderId is required' });
+
+    if (!userId) {
+      const defaultUser = await prisma.user.findFirst({
+        include: { senders: true },
+      });
+      if (defaultUser) {
+        userId = defaultUser.id;
+        if (!senderId && defaultUser.senders.length > 0) {
+          senderId = defaultUser.senders[0].id;
+        }
+      } else {
+        // Create initial default user and sender if database is fresh
+        const createdUser = await prisma.user.create({
+          data: {
+            email: 'oliver.brown@domain.io',
+            name: 'Oliver Brown',
+            senders: {
+              create: {
+                email: 'oliver.brown@domain.io',
+                name: 'Oliver Brown',
+              },
+            },
+          },
+          include: { senders: true },
+        });
+        userId = createdUser.id;
+        senderId = createdUser.senders[0].id;
+      }
     }
+
+    if (!senderId) {
+      const sender = await prisma.sender.findFirst({ where: { userId } });
+      if (sender) {
+        senderId = sender.id;
+      } else {
+        const newSender = await prisma.sender.create({
+          data: {
+            userId,
+            email: 'oliver.brown@domain.io',
+            name: 'Oliver Brown',
+          },
+        });
+        senderId = newSender.id;
+      }
+    }
+
+    // 3. Input Validations
     if (!recipientEmail || typeof recipientEmail !== 'string' || !recipientEmail.includes('@')) {
       return res.status(400).json({ success: false, message: 'valid recipientEmail is required' });
     }
@@ -43,7 +88,7 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
     if (!scheduledAt || isNaN(Date.parse(scheduledAt))) {
       return res.status(400).json({ success: false, message: 'scheduledAt must be a valid ISO date string' });
     }
-    if (new Date(scheduledAt).getTime() <= Date.now()) {
+    if (new Date(scheduledAt).getTime() <= Date.now() - 5000) {
       return res.status(400).json({ success: false, message: 'scheduledAt must be a future date' });
     }
 
@@ -145,6 +190,52 @@ export async function searchEmailsHandler(req: Request, res: Response) {
     return res.status(500).json({
       success: false,
       message: error?.message || 'Failed to execute search on Elasticsearch',
+    });
+  }
+}
+
+export async function getDashboardStatsHandler(req: Request, res: Response) {
+  try {
+    const [scheduled, sent, failed, retrying, cancelled, processing] = await Promise.all([
+      prisma.emailJob.count({ where: { status: 'SCHEDULED' } }),
+      prisma.emailJob.count({ where: { status: 'SENT' } }),
+      prisma.emailJob.count({ where: { status: 'FAILED' } }),
+      prisma.emailJob.count({ where: { status: 'RETRYING' } }),
+      prisma.emailJob.count({ where: { status: 'CANCELLED' } }),
+      prisma.emailJob.count({ where: { status: 'PROCESSING' } }),
+    ]);
+
+    let queueCounts = { waiting: 0, active: 0, delayed: 0 };
+    try {
+      const counts = await emailQueue.getJobCounts('waiting', 'active', 'delayed');
+      queueCounts = {
+        waiting: counts.waiting || 0,
+        active: counts.active || 0,
+        delayed: counts.delayed || 0,
+      };
+    } catch (qErr) {
+      console.warn('Queue counts fetch warning:', qErr);
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        scheduled,
+        sent,
+        failed,
+        retrying,
+        cancelled,
+        processing,
+        queueWaiting: queueCounts.waiting,
+        queueActive: queueCounts.active,
+        queueDelayed: queueCounts.delayed,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching dashboard stats:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to fetch dashboard statistics',
     });
   }
 }

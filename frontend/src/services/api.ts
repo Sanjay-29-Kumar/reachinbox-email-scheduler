@@ -35,7 +35,27 @@ export interface EmailJob {
   starred?: boolean;
 }
 
+export interface DashboardStats {
+  scheduled: number;
+  sent: number;
+  failed: number;
+  retrying: number;
+  cancelled: number;
+  processing: number;
+  queueWaiting: number;
+  queueActive: number;
+  queueDelayed: number;
+}
+
+export interface HealthStatus {
+  status: 'ok' | 'degraded';
+  database: 'connected' | 'disconnected';
+  redis: 'connected' | 'disconnected';
+  elasticsearch: 'connected' | 'disconnected';
+}
+
 export interface ScheduleEmailPayload {
+  userId?: string;
   senderId?: string;
   recipientEmail: string;
   subject: string;
@@ -47,6 +67,34 @@ export interface ScheduleEmailPayload {
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('reachinbox_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function getHealth(): Promise<HealthStatus | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/health`);
+    if (!res.ok && res.status !== 503) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('Health check request failed:', err);
+    return null;
+  }
+}
+
+export async function getDashboardStats(): Promise<DashboardStats | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/emails/stats`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch (err) {
+    console.warn('Dashboard stats request failed:', err);
+    return null;
+  }
 }
 
 export async function getGoogleAuthUrl(): Promise<string> {
