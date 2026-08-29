@@ -191,8 +191,16 @@ MODULE 5 — Cancel Scheduled Emails
 - [x] `cancelEmailJob` function in `email.service.ts` removing BullMQ job & updating DB
 - [x] `DELETE /api/emails/:id` route & controller handler
 - [x] Worker safety guard skipping CANCELLED jobs
+
+MODULE 6 — Hourly Rate Limiting
+- [x] Redis-backed distributed hourly counter per sender (`rate_limit:{senderId}:{yyyy-MM-dd-HH}`)
+- [x] Configurable `MAX_EMAILS_PER_HOUR=10` in environment
+- [x] Atomic Lua script (`eval`) preventing race conditions under worker concurrency (`EMAIL_WORKER_CONCURRENCY=5`)
+- [x] Rate limit check prior to email send attempt
+- [x] Automatic rescheduling to next hour window when quota is exceeded without marking job FAILED or consuming retry attempts
+- [x] Independent rate limits per sender
+- [x] Integration with cancellation and retry mechanics verified
 - [x] TypeScript verification (npx tsc --noEmit: 0 errors)
-- [x] End-to-end cancellation test (Verified BullMQ removal, DB CANCELLED status, no send execution, and edge case HTTP status codes 404/400)
 
 CURRENT PROJECT STATUS
 
@@ -205,6 +213,7 @@ Completed:
 - Real email delivery via Nodemailer + SMTP
 - Retry & failure handling with exponential backoff
 - Cancel scheduled emails endpoint & worker guard
+- Distributed hourly rate limiting with atomic Lua script and job rescheduling
 
 Next module:
-Hourly Rate Limiting
+Elasticsearch Indexing & Search API

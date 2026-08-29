@@ -1,8 +1,6 @@
 import prisma from '../lib/prisma';
 
 async function main() {
-  console.log('Seeding initial User and Sender...');
-
   const user = await prisma.user.upsert({
     where: { email: 'testuser@example.com' },
     update: {},
@@ -12,27 +10,31 @@ async function main() {
     },
   });
 
-  const sender = await prisma.sender.upsert({
+  await prisma.sender.upsert({
     where: { id: 'test-sender-id' },
     update: {},
     create: {
       id: 'test-sender-id',
       userId: user.id,
-      email: 'sender@example.com',
-      name: 'Test Sender',
+      email: 'senderA@example.com',
+      name: 'Sender A',
     },
   });
 
-  console.log('Seed successful!');
-  console.log(`User ID: ${user.id}`);
-  console.log(`Sender ID: ${sender.id}`);
+  await prisma.sender.upsert({
+    where: { id: 'sender-B-id' },
+    update: {},
+    create: {
+      id: 'sender-B-id',
+      userId: user.id,
+      email: 'senderB@example.com',
+      name: 'Sender B',
+    },
+  });
+
+  console.log('Seeded Sender A and Sender B successfully');
 }
 
-main()
-  .catch((e) => {
-    console.error('Seed error:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().finally(async () => {
+  await prisma.$disconnect();
+});

@@ -2,10 +2,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { Worker, Job } from 'bullmq';
-import { EMAIL_QUEUE_NAME, EmailJobData } from '../queues/email.queue';
+import { EMAIL_QUEUE_NAME, emailQueue, EmailJobData } from '../queues/email.queue';
 import { redisConnectionOptions } from '../lib/redis';
 import prisma from '../lib/prisma';
 import { sendEmail } from '../lib/email';
+import { consumeRateLimitQuota, getMsUntilNextHour } from '../lib/rateLimiter';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -51,7 +52,46 @@ export const emailWorker = new Worker<EmailJobData>(
       return;
     }
 
-    // 4. Atomic transition: SCHEDULED / RETRYING -> PROCESSING & update attempts
+    // 4. Rate Limit Check (Per Sender, Distributed via Redis)
+    const maxEmailsPerHour = parseInt(process.env.MAX_EMAILS_PER_HOUR || '10', 10);
+    const rateLimitResult = await consumeRateLimitQuota(emailJob.senderId, maxEmailsPerHour);
+
+    if (!rateLimitResult.allowed) {
+      const delayMs = getMsUntilNextHour();
+      const nextExecutionDate = new Date(Date.now() + delayMs);
+
+      console.log(`[Worker RateLimit] Sender ${emailJob.senderId} reached hourly limit (${maxEmailsPerHour}/hr). Rescheduling EmailJob ${emailJobId} for ${nextExecutionDate.toISOString()} (delay: ${delayMs}ms).`);
+
+      // Reschedule job in BullMQ for next hour without marking FAILED or consuming retry attempts
+      const retryDelay = parseInt(process.env.EMAIL_RETRY_DELAY || '5000', 10);
+
+      const rescheduledBullJob = await emailQueue.add(
+        'send-email',
+        { emailJobId: emailJob.id },
+        {
+          delay: delayMs,
+          jobId: `${emailJob.id}-rescheduled-${Date.now()}`,
+          attempts: maxAttempts,
+          backoff: {
+            type: 'exponential',
+            delay: retryDelay,
+          },
+        }
+      );
+
+      // Keep DB record in SCHEDULED status and update bullJobId
+      await prisma.emailJob.update({
+        where: { id: emailJob.id },
+        data: {
+          status: EmailJobStatus.SCHEDULED,
+          bullJobId: String(rescheduledBullJob.id),
+        },
+      });
+
+      return; // Exit cleanly without throwing an error
+    }
+
+    // 5. Atomic transition: SCHEDULED / RETRYING -> PROCESSING & update attempts
     const updateResult = await prisma.emailJob.updateMany({
       where: {
         id: emailJobId,
@@ -72,7 +112,7 @@ export const emailWorker = new Worker<EmailJobData>(
 
     console.log(`[Worker] Processing email send (Attempt ${currentAttempt}/${maxAttempts}) for recipient: ${emailJob.recipientEmail}, Subject: "${emailJob.subject}"`);
 
-    // 5. Call Real Email Sending Service
+    // 6. Call Real Email Sending Service
     try {
       await sendEmail({
         to: emailJob.recipientEmail,
@@ -80,7 +120,7 @@ export const emailWorker = new Worker<EmailJobData>(
         text: emailJob.body,
       });
 
-      // 6. On Success: Update status to SENT, set sentAt, clear lastError
+      // 7. On Success: Update status to SENT, set sentAt, clear lastError
       await prisma.emailJob.update({
         where: { id: emailJobId },
         data: {
@@ -95,7 +135,7 @@ export const emailWorker = new Worker<EmailJobData>(
       const errorMessage = sendError instanceof Error ? sendError.message : 'Unknown email send error';
       console.error(`[Worker Error] Send failed for EmailJob ${emailJobId} (Attempt ${currentAttempt}/${maxAttempts}): ${errorMessage}`);
 
-      // 7. Check if retries remain in BullMQ
+      // 8. Check if retries remain in BullMQ
       if (currentAttempt < maxAttempts) {
         console.log(`[Worker] Retries remaining (${maxAttempts - currentAttempt}). Updating status to RETRYING for EmailJob ${emailJobId}.`);
         await prisma.emailJob.update({
