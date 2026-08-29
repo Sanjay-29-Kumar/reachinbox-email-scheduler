@@ -1,16 +1,30 @@
-import express, { Application, Request, Response } from 'express';
+import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import prisma from './lib/prisma';
 import emailRoutes from './routes/email.routes';
+import authRoutes from './routes/auth.routes';
 import { getMetricsText, metricsRegistry } from './lib/metrics';
+import { getHealthHandler } from './controllers/health.controller';
 
 const app: Application = express();
 
-// Middleware
-app.use(cors());
+// CORS Configuration
+const allowedOrigin = process.env.FRONTEND_URL || 'http://localhost:3000';
+app.use(
+  cors({
+    origin: allowedOrigin === '*' ? true : [allowedOrigin, 'http://localhost:3000', 'http://localhost:5173'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-idempotency-key'],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// Metrics Endpoint
+// Health Check Endpoints
+app.get('/health', getHealthHandler);
+app.get('/api/health', getHealthHandler);
+
+// Prometheus Metrics Endpoint
 app.get('/metrics', async (req: Request, res: Response) => {
   try {
     const metricsText = await getMetricsText();
@@ -22,31 +36,32 @@ app.get('/metrics', async (req: Request, res: Response) => {
   }
 });
 
-// Health Check Routes
-app.get('/api/health', (req: Request, res: Response) => {
-  res.status(200).json({
-    success: true,
-    message: 'ReachInbox Email Scheduler API is running',
+// Authentication Routes
+app.use('/api/auth', authRoutes);
+
+// Email API Routes
+app.use('/api/emails', emailRoutes);
+
+// 404 Handler for Unknown Routes
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    success: false,
+    message: `Cannot ${req.method} ${req.originalUrl} - Route not found`,
   });
 });
 
-app.get('/api/db-health', async (req: Request, res: Response) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({
-      success: true,
-      message: 'Database connection successful',
-    });
-  } catch (error) {
-    console.error('Database connection error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Database connection failed',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
+// Global Error Handler Middleware
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error('[Unhandled Server Error]:', err);
 
-app.use('/api/emails', emailRoutes);
+  const statusCode = typeof err.statusCode === 'number' ? err.statusCode : 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    success: false,
+    message,
+    ...(process.env.NODE_ENV === 'development' ? { error: err.stack } : {}),
+  });
+});
 
 export default app;

@@ -8,6 +8,7 @@ import prisma from '../lib/prisma';
 import { getEmailProvider } from '../providers/emailProvider.factory';
 import { consumeRateLimitQuota, getMsUntilNextHour } from '../lib/rateLimiter';
 import { updateEmailJobInElasticsearch } from '../services/elasticsearch.service';
+import { notifySlack } from '../services/slack.service';
 import {
   incrementEmailsSent,
   incrementEmailsFailed,
@@ -107,6 +108,15 @@ export const emailWorker = new Worker<EmailJobData>(
         bullJobId: String(rescheduledBullJob.id),
       }).catch((esErr) => console.warn(`[ES Warning] Rate limit reschedule sync failed for ${emailJob.id}:`, esErr));
 
+      // Notify Slack about rate limit reschedule
+      notifySlack({
+        event: 'RATE_LIMITED',
+        recipientEmail: emailJob.recipientEmail,
+        subject: emailJob.subject,
+        emailJobId: emailJob.id,
+        extraDetails: `Quota exceeded for sender. Rescheduled for ${nextExecutionDate.toISOString()}`,
+      }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
+
       return; // Exit cleanly without throwing an error
     }
 
@@ -171,6 +181,15 @@ export const emailWorker = new Worker<EmailJobData>(
         lastError: null,
       }).catch((esErr) => console.warn(`[ES Warning] SENT sync failed for ${emailJobId}:`, esErr));
 
+      // Notify Slack of successful email send (Non-blocking)
+      notifySlack({
+        event: 'SENT',
+        recipientEmail: emailJob.recipientEmail,
+        subject: emailJob.subject,
+        emailJobId: emailJob.id,
+        extraDetails: `Delivered via ${sendResult.provider} (MsgID: ${sendResult.messageId})`,
+      }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
+
       console.log(`[Worker] Successfully sent email (Attempt ${currentAttempt}/${maxAttempts}) and updated EmailJob ${emailJobId} to SENT.`);
     } catch (sendError: any) {
       const errorMessage = sendError instanceof Error ? sendError.message : 'Unknown email send error';
@@ -212,6 +231,15 @@ export const emailWorker = new Worker<EmailJobData>(
           status: EmailJobStatus.FAILED,
           lastError: errorMessage,
         }).catch((esErr) => console.warn(`[ES Warning] FAILED sync failed for ${emailJobId}:`, esErr));
+
+        // Notify Slack of permanent failure (Non-blocking)
+        notifySlack({
+          event: 'FAILED',
+          recipientEmail: emailJob.recipientEmail,
+          subject: emailJob.subject,
+          emailJobId: emailJob.id,
+          extraDetails: `Failed after ${maxAttempts} attempts. Error: ${errorMessage}`,
+        }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
       }
 
       // Re-throw error so BullMQ handles exponential backoff retry scheduling or job failure
@@ -229,3 +257,20 @@ emailWorker.on('failed', (job, err) => {
   const maxAttempts = job?.opts.attempts || 3;
   console.error(`[Worker Event] Job ${job?.id} attempt ${attempts}/${maxAttempts} failed:`, err.message);
 });
+
+// Graceful Shutdown for Email Worker
+async function shutdownWorker(signal: string) {
+  console.log(`\n[Worker] Received ${signal}. Closing BullMQ worker...`);
+  try {
+    await emailWorker.close();
+    console.log('[Worker] BullMQ worker closed cleanly.');
+    await prisma.$disconnect();
+    console.log('[Worker] Disconnected Prisma client.');
+  } catch (err) {
+    console.error('[Worker Error] Error during worker shutdown:', err);
+  }
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdownWorker('SIGINT'));
+process.on('SIGTERM', () => shutdownWorker('SIGTERM'));

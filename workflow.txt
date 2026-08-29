@@ -22,8 +22,8 @@ Infrastructure:
 - Docker
 
 Integrations:
-- Google OAuth
-- Slack OAuth
+- Google OAuth 2.0
+- Slack Incoming Webhook
 - Resend HTTP API Provider / Mock Testing Provider
 
 COMPLETE EMAIL SCHEDULING FLOW
@@ -48,23 +48,23 @@ User
     → Database updated to SENT
     → Elasticsearch index updated
     → Prometheus metrics updated
+    → Slack notification sent for SENT event
 → If rate limit exceeded:
     → Job is delayed/rescheduled to next available window
-    → Slack notification sent if Slack is connected
+    → Slack notification sent for RATE_LIMITED event
 
 DATABASE RESPONSIBILITIES
 
 PostgreSQL is the source of truth.
 
 Store:
-- Users
+- Users (Google OAuth profile)
 - Senders
 - Email jobs
 - Status
 - Scheduled time
 - Sent time
 - Idempotency keys
-- Slack connection details
 
 REDIS RESPONSIBILITIES
 
@@ -93,7 +93,7 @@ Worker receives job
     NO → Do not drop job
           → Calculate next available time
           → Reschedule/delay job
-          → Notify Slack if connected
+          → Notify Slack
 
 Limits are configurable through environment variables.
 
@@ -116,13 +116,10 @@ Server stops
 
 SLACK NOTIFICATION FLOW
 
-User clicks Connect Slack
-→ Slack OAuth authorization
-→ Backend receives OAuth callback
-→ Slack token/connection stored securely
-→ Rate limit reached
-→ Backend sends real Slack API notification
-→ If Slack is not connected, scheduler continues without failing.
+Webhook configured via SLACK_WEBHOOK_URL
+→ Email lifecycle triggers (SCHEDULED, SENT, FAILED, CANCELLED, RATE_LIMITED)
+→ Backend sends asynchronous HTTP webhook notification
+→ If Slack is not configured or fails, scheduler continues without breaking.
 
 HIGH LOAD BEHAVIOR
 
@@ -155,7 +152,7 @@ FINAL SYSTEM ARCHITECTURE
                                │
                     ┌──────────┴──────────┐
                     ▼                     ▼
-             EmailProvider          Slack API
+             EmailProvider          Slack Webhook
              (Resend API / Mock)
 
 MODULE 1 — Infrastructure
@@ -224,13 +221,33 @@ MODULE 8 — Observability & Metrics
 - [x] Error isolation ensuring metrics failures never affect core email delivery
 - [x] Automated test script (`npm run test:metrics`)
 
-MODULE 9A — Complete Removal of Nodemailer & Resend Production Provider Finalization
+MODULE 9 — Production Email Provider Abstraction & Nodemailer Removal
 - [x] Completely removed Nodemailer & Ethereal dependencies and imports (0 references remaining)
 - [x] `EmailProvider` interface & contract (`backend/src/providers/emailProvider.interface.ts`)
 - [x] Factory pattern (`backend/src/providers/emailProvider.factory.ts`) defaulting to `ResendEmailProvider`
 - [x] Production `ResendEmailProvider` (`backend/src/providers/resendProvider.ts`) via standard `fetch`
 - [x] Testing `MockEmailProvider` (`backend/src/providers/mockProvider.ts`)
 - [x] Automated provider test suite (`npm run test:provider`) with mocked `fetch` API response testing
+
+MODULE 10 — Backend Production Hardening & Health Checks
+- [x] Comprehensive Health Check API (`GET /health` & `GET /api/health`) verifying PostgreSQL, Redis, and Elasticsearch (HTTP 200/503)
+- [x] Startup Environment Validation (`backend/src/lib/envValidation.ts`)
+- [x] Strict API Request Validation across schedule, search, and cancel endpoints (HTTP 400 rejection)
+- [x] Global 404 handler for unknown routes returning clean JSON
+- [x] Global error handling middleware suppressing stack traces in production
+- [x] Configurable CORS with `FRONTEND_URL`
+- [x] Graceful shutdown handling for Express server and BullMQ worker on SIGINT/SIGTERM
+- [x] Automated health and hardening test suite (`npm run test:health`)
+
+MODULE 11 — Google OAuth + Slack Integration
+- [x] Google OAuth 2.0 service (`backend/src/services/auth.service.ts`) with authorization URL generation and token exchange
+- [x] Google User upsert & PostgreSQL persistence with auto-sender creation
+- [x] JWT Session generation & verification with `authenticateUser` middleware
+- [x] Auth routes (`GET /api/auth/google`, `GET /api/auth/google/callback`, `GET /api/auth/me`, `POST /api/auth/logout`)
+- [x] Slack Incoming Webhook service (`backend/src/services/slack.service.ts`) with safe non-blocking error isolation
+- [x] Slack event notifications across email lifecycle (SCHEDULED, SENT, FAILED, CANCELLED, RATE_LIMITED)
+- [x] Automated OAuth test suite (`npm run test:oauth`)
+- [x] Automated Slack webhook test suite (`npm run test:slack`)
 
 CURRENT PROJECT STATUS
 
@@ -245,6 +262,8 @@ Completed:
 - Retry & failure handling with exponential backoff
 - Cancel scheduled emails endpoint & worker guard
 - Distributed hourly rate limiting with atomic Lua script and job rescheduling
+- Backend Production Hardening, Health Checks (`GET /health`), CORS, and Graceful Shutdown
+- Google OAuth 2.0 Authentication & Slack Webhook Notifications
 
 Next module:
-Google OAuth & Authentication
+React Frontend Dashboard

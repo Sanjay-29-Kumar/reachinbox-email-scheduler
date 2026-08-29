@@ -2,6 +2,7 @@ import prisma from '../lib/prisma';
 import { emailQueue } from '../queues/email.queue';
 import { indexEmailJob, updateEmailJobInElasticsearch } from './elasticsearch.service';
 import { incrementEmailsScheduled, incrementEmailsCancelled } from '../lib/metrics';
+import { notifySlack } from './slack.service';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -121,6 +122,15 @@ export async function scheduleEmail(input: ScheduleEmailInput) {
       console.warn(`[Elasticsearch Warning] ES Indexing failed for EmailJob ${updatedJob.id}:`, esErr);
     }
 
+    // 9. Notify Slack (Side effect - non-blocking and safe)
+    notifySlack({
+      event: 'SCHEDULED',
+      recipientEmail: updatedJob.recipientEmail,
+      subject: updatedJob.subject,
+      emailJobId: updatedJob.id,
+      extraDetails: `Scheduled for ${scheduledDate.toISOString()}`,
+    }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
+
     return updatedJob;
   } catch (queueError) {
     console.error(`[Queue Error] Failed to enqueue job for EmailJob ${emailJob.id}:`, queueError);
@@ -189,6 +199,14 @@ export async function cancelEmailJob(emailJobId: string) {
   } catch (esErr) {
     console.warn(`[Elasticsearch Warning] ES Cancel update failed for EmailJob ${emailJobId}:`, esErr);
   }
+
+  // 7. Notify Slack (Side effect - non-blocking and safe)
+  notifySlack({
+    event: 'CANCELLED',
+    recipientEmail: cancelledJob.recipientEmail,
+    subject: cancelledJob.subject,
+    emailJobId: cancelledJob.id,
+  }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
 
   return cancelledJob;
 }
