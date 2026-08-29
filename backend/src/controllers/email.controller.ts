@@ -1,12 +1,34 @@
 import { Request, Response } from 'express';
-import { scheduleEmail, getEmailJobs, cancelEmailJob, EmailJobStatus } from '../services/email.service';
+import { scheduleEmail, cancelEmailJob, EmailJobStatus } from '../services/email.service';
 import { searchEmailJobs } from '../services/elasticsearch.service';
 import { emailQueue } from '../queues/email.queue';
+import { verifyAuthToken } from '../services/auth.service';
 import prisma from '../lib/prisma';
+
+function getUserIdFromRequest(req: Request): string | undefined {
+  if ((req as any).user?.userId) {
+    return (req as any).user.userId;
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const payload = verifyAuthToken(authHeader.split(' ')[1]);
+      return payload.userId;
+    } catch {
+      // invalid token
+    }
+  }
+  return undefined;
+}
 
 export async function scheduleEmailHandler(req: Request, res: Response) {
   try {
     let { userId, senderId, recipientEmail, subject, body, scheduledAt, idempotencyKey } = req.body;
+
+    const requestUserId = getUserIdFromRequest(req);
+    if (!userId && requestUserId) {
+      userId = requestUserId;
+    }
 
     if (!idempotencyKey || typeof idempotencyKey !== 'string') {
       idempotencyKey = `job-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -27,10 +49,6 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
 
     // 2. User & Sender Auto-Resolution (fallback to authenticated user or default DB user/sender)
     if (!userId) {
-      userId = (req as any).user?.userId;
-    }
-
-    if (!userId) {
       const defaultUser = await prisma.user.findFirst({
         include: { senders: true },
       });
@@ -40,15 +58,14 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
           senderId = defaultUser.senders[0].id;
         }
       } else {
-        // Create initial default user and sender if database is fresh
         const createdUser = await prisma.user.create({
           data: {
-            email: 'oliver.brown@domain.io',
-            name: 'Oliver Brown',
+            email: 'user@reachinbox.ai',
+            name: 'ReachInbox User',
             senders: {
               create: {
-                email: 'oliver.brown@domain.io',
-                name: 'Oliver Brown',
+                email: 'user@reachinbox.ai',
+                name: 'ReachInbox User',
               },
             },
           },
@@ -67,8 +84,8 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
         const newSender = await prisma.sender.create({
           data: {
             userId,
-            email: 'oliver.brown@domain.io',
-            name: 'Oliver Brown',
+            email: 'user@reachinbox.ai',
+            name: 'ReachInbox User',
           },
         });
         senderId = newSender.id;
@@ -118,7 +135,12 @@ export async function scheduleEmailHandler(req: Request, res: Response) {
 
 export async function getEmailsHandler(req: Request, res: Response) {
   try {
-    const jobs = await getEmailJobs();
+    const userId = getUserIdFromRequest(req);
+    const jobs = await prisma.emailJob.findMany({
+      where: userId ? { userId } : undefined,
+      orderBy: { createdAt: 'desc' },
+    });
+
     return res.status(200).json({
       success: true,
       data: jobs,
@@ -196,13 +218,16 @@ export async function searchEmailsHandler(req: Request, res: Response) {
 
 export async function getDashboardStatsHandler(req: Request, res: Response) {
   try {
+    const userId = getUserIdFromRequest(req);
+    const whereBase = userId ? { userId } : {};
+
     const [scheduled, sent, failed, retrying, cancelled, processing] = await Promise.all([
-      prisma.emailJob.count({ where: { status: 'SCHEDULED' } }),
-      prisma.emailJob.count({ where: { status: 'SENT' } }),
-      prisma.emailJob.count({ where: { status: 'FAILED' } }),
-      prisma.emailJob.count({ where: { status: 'RETRYING' } }),
-      prisma.emailJob.count({ where: { status: 'CANCELLED' } }),
-      prisma.emailJob.count({ where: { status: 'PROCESSING' } }),
+      prisma.emailJob.count({ where: { ...whereBase, status: 'SCHEDULED' } }),
+      prisma.emailJob.count({ where: { ...whereBase, status: 'SENT' } }),
+      prisma.emailJob.count({ where: { ...whereBase, status: 'FAILED' } }),
+      prisma.emailJob.count({ where: { ...whereBase, status: 'RETRYING' } }),
+      prisma.emailJob.count({ where: { ...whereBase, status: 'CANCELLED' } }),
+      prisma.emailJob.count({ where: { ...whereBase, status: 'PROCESSING' } }),
     ]);
 
     let queueCounts = { waiting: 0, active: 0, delayed: 0 };

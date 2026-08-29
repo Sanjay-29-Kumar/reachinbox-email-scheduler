@@ -177,7 +177,7 @@ export function App() {
 
   // Real Database Counts
   const scheduledEmails = emailJobs.filter(
-    (e) => e.status === 'SCHEDULED' || e.status === 'PROCESSING' || e.status === 'RETRYING'
+    (e) => e.status === 'SCHEDULED' || e.status === 'PROCESSING' || e.status === 'RETRYING' || e.status === 'FAILED'
   );
   const sentEmails = emailJobs.filter((e) => e.status === 'SENT');
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowLeft,
   Paperclip,
@@ -37,32 +37,19 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
   user,
   accounts,
 }) => {
-  const defaultSenderEmail = user?.email || (accounts[0]?.email || 'oliver.brown@domain.io');
+  const initialFrom = accounts[0]?.email || user?.email || '';
 
-  const [fromEmail] = useState(defaultSenderEmail);
+  const [fromEmail, setFromEmail] = useState(initialFrom);
+  const [showFromDropdown, setShowFromDropdown] = useState(false);
   const [recipientInput, setRecipientInput] = useState('');
-  const [recipientList, setRecipientList] = useState<string[]>([
-    'tame@jmail.com',
-    'lame@jmail.com',
-    'dame@jmail.com',
-    'rame@jmail.com',
-    'same@jmail.com',
-    'kame@jmail.com',
-    'mame@jmail.com',
-  ]);
+  const [recipientList, setRecipientList] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [delayBetweenEmails, setDelayBetweenEmails] = useState('00');
   const [hourlyLimit, setHourlyLimit] = useState('00');
 
   // Attachments
-  const [attachments, setAttachments] = useState<Array<{ name: string; size: string; previewUrl: string }>>([
-    {
-      name: 'Tennis_Coach_Profile.png',
-      size: '1.2 MB',
-      previewUrl: '',
-    },
-  ]);
+  const [attachments, setAttachments] = useState<Array<{ name: string; size: string; previewUrl: string }>>([]);
 
   // Send Later Popover state
   const [showSendLater, setShowSendLater] = useState(false);
@@ -70,9 +57,18 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
   const [selectedQuickPreset, setSelectedQuickPreset] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadListInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (accounts.length > 0 && !fromEmail) {
+      setFromEmail(accounts[0].email);
+    } else if (user?.email && !fromEmail) {
+      setFromEmail(user.email);
+    }
+  }, [accounts, user, fromEmail]);
 
   // Handle CSV / TXT list upload
   const handleUploadList = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,7 +97,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
       e.preventDefault();
       const trimmed = recipientInput.trim().replace(/,/g, '');
       if (trimmed && trimmed.includes('@')) {
-        setRecipientList((prev) => [...prev, trimmed]);
+        setRecipientList((prev) => Array.from(new Set([...prev, trimmed])));
         setRecipientInput('');
       }
     }
@@ -145,6 +141,16 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
       return;
     }
 
+    if (!subject.trim()) {
+      setErrorMessage('Please enter an email subject.');
+      return;
+    }
+
+    if (!body.trim()) {
+      setErrorMessage('Please enter email body content.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       setErrorMessage('');
@@ -160,13 +166,16 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
 
         await scheduleEmail({
           recipientEmail: recipient,
-          subject: subject || 'No Subject',
-          body: body || '',
+          subject: subject.trim(),
+          body: body.trim(),
           scheduledAt: recipientSendTime,
         });
       }
 
-      onEmailScheduled();
+      setSuccessMessage('Email scheduled successfully!');
+      setTimeout(() => {
+        onEmailScheduled();
+      }, 500);
     } catch (err: any) {
       console.error('Failed to send email:', err);
       setErrorMessage(err?.message || 'Failed to schedule email');
@@ -189,7 +198,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
         overflowY: 'auto',
       }}
     >
-      {/* Top Bar matching Figma exact screenshot */}
+      {/* Top Bar */}
       <div
         style={{
           display: 'flex',
@@ -228,7 +237,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
 
         {/* Right Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {/* Paperclip Icon with Badge count 1 */}
+          {/* Paperclip Icon */}
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
             <button
               title="Attach file"
@@ -265,7 +274,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             />
           </div>
 
-          {/* Clock Icon in green */}
+          {/* Clock Icon */}
           <button
             title="Send Later options"
             onClick={() => setShowSendLater(!showSendLater)}
@@ -277,7 +286,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             <Clock size={19} />
           </button>
 
-          {/* Send Later Pill Button */}
+          {/* Send Later Button */}
           <button
             onClick={handleSend}
             disabled={isSubmitting}
@@ -324,6 +333,21 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
         </div>
       )}
 
+      {successMessage && (
+        <div
+          style={{
+            margin: '12px 32px 0 32px',
+            padding: '10px 16px',
+            backgroundColor: '#DCFCE7',
+            color: '#15803D',
+            fontSize: '13px',
+            borderRadius: '8px',
+          }}
+        >
+          {successMessage}
+        </div>
+      )}
+
       {/* Main Compose Form */}
       <div style={{ padding: '24px 32px', maxWidth: '900px' }}>
         {/* From Row */}
@@ -333,6 +357,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             alignItems: 'center',
             gap: '24px',
             marginBottom: '16px',
+            position: 'relative',
           }}
         >
           <span
@@ -346,6 +371,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             From
           </span>
           <div
+            onClick={() => setShowFromDropdown(!showFromDropdown)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -356,11 +382,50 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               fontSize: '13px',
               color: '#374151',
               fontWeight: 500,
+              cursor: 'pointer',
             }}
           >
-            <span>{fromEmail}</span>
+            <span>{fromEmail || 'Select Sender'}</span>
             <ChevronDown size={14} color="#6B7280" />
           </div>
+
+          {showFromDropdown && accounts.length > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: '74px',
+                marginTop: '4px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                border: '1px solid #E5E7EB',
+                padding: '4px',
+                zIndex: 30,
+              }}
+            >
+              {accounts.map((acc) => (
+                <div
+                  key={acc.id}
+                  onClick={() => {
+                    setFromEmail(acc.email);
+                    setShowFromDropdown(false);
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    color: '#374151',
+                    borderRadius: '4px',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  {acc.email}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* To Row with Upload List */}
@@ -388,7 +453,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               To
             </span>
 
-            {/* Recipient Pills matching Screenshot 3 */}
+            {/* Recipient Pills */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
               {visibleRecipients.map((rec, idx) => (
                 <div
@@ -433,18 +498,18 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
                 </div>
               )}
 
-              {/* Text input to type more recipients */}
+              {/* Text input for recipients */}
               <input
-                type="text"
+                type="email"
                 value={recipientInput}
                 onChange={(e) => setRecipientInput(e.target.value)}
                 onKeyDown={handleAddRecipient}
-                placeholder={recipientList.length === 0 ? 'recipient@example.com' : 'Add more...'}
+                placeholder={recipientList.length === 0 ? 'recipient@example.com (press Enter to add)' : 'Add more...'}
                 style={{
                   fontSize: '14px',
                   color: '#111827',
                   backgroundColor: 'transparent',
-                  minWidth: '150px',
+                  minWidth: '200px',
                   flex: 1,
                 }}
               />
@@ -522,7 +587,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
           />
         </div>
 
-        {/* Numeric Limits Row (Delay & Hourly Limit) */}
+        {/* Numeric Limits Row */}
         <div
           style={{
             display: 'flex',
@@ -533,7 +598,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '13px', color: '#4B5563', fontWeight: 500 }}>
-              Delay between 2 emails
+              Delay between 2 emails (sec)
             </span>
             <input
               type="text"
@@ -653,7 +718,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             </button>
           </div>
 
-          {/* Textarea Area */}
+          {/* Textarea */}
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -671,35 +736,9 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             }}
           />
         </div>
-
-        {/* Attachment Thumbnail Preview matching Screenshot 2 & 3 */}
-        {attachments.length > 0 && (
-          <div style={{ marginTop: '8px' }}>
-            <div
-              style={{
-                width: '180px',
-                height: '110px',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                backgroundColor: '#0284C7',
-                background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FFFFFF',
-                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.08)',
-                position: 'relative',
-              }}
-            >
-              <span style={{ fontSize: '26px' }}>🎾</span>
-              <span style={{ fontSize: '11px', fontWeight: 600, marginTop: '4px' }}>Tennis Coach Profile</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Floating "Send Later" Popover matching Screenshot 5 */}
+      {/* Floating "Send Later" Popover */}
       {showSendLater && (
         <div
           style={{

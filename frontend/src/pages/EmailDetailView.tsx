@@ -13,8 +13,18 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
   onBack,
   onDelete,
 }) => {
-  const formattedDate = 'Nov 3, 10:23 AM';
-  const recipientName = email.recipientEmail.split('@')[0] || 'me';
+  const formattedDate = email.createdAt
+    ? new Date(email.createdAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : 'Recently';
+
+  const recipientName = email.recipientEmail.split('@')[0] || email.recipientEmail;
+  const initial = (email.recipientEmail.charAt(0) || 'A').toUpperCase();
 
   return (
     <div
@@ -26,7 +36,7 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
         overflowY: 'auto',
       }}
     >
-      {/* Top Bar matching Screenshot 4 */}
+      {/* Top Bar matching Figma exact layout */}
       <div
         style={{
           display: 'flex',
@@ -68,17 +78,17 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
               textOverflow: 'ellipsis',
             }}
           >
-            {email.subject || 'Oliver, hello there! | MJWYT44 BM#52W01'}
+            {email.subject || 'Email Details'}
           </h2>
         </div>
 
         {/* Action Icons on Right */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#9CA3AF' }}>
-          <button title="Star" style={{ color: '#9CA3AF' }}>
-            <Star size={18} />
+          <button title="Star" style={{ color: email.starred ? '#F59E0B' : '#9CA3AF' }}>
+            <Star size={18} fill={email.starred ? '#F59E0B' : 'none'} />
           </button>
           <button
-            title="Delete"
+            title="Delete / Cancel"
             onClick={() => onDelete && onDelete(email.id)}
             style={{ color: '#9CA3AF' }}
           >
@@ -94,26 +104,18 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
               width: '28px',
               height: '28px',
               borderRadius: '50%',
-              backgroundColor: '#E5E7EB',
+              backgroundColor: '#00A859',
               overflow: 'hidden',
               marginLeft: '4px',
+              color: '#FFFFFF',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 600,
             }}
           >
-            <div
-              style={{
-                width: '100%',
-                height: '100%',
-                backgroundColor: '#9CA3AF',
-                color: '#FFFFFF',
-                fontSize: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 600,
-              }}
-            >
-              O
-            </div>
+            {initial}
           </div>
         </div>
       </div>
@@ -145,16 +147,16 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
                 fontWeight: 700,
               }}
             >
-              A
+              {initial}
             </div>
 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '15px', fontWeight: 700, color: '#111827' }}>
-                  Amanda Clark
+                  {recipientName}
                 </span>
                 <span style={{ fontSize: '13px', color: '#6B7280' }}>
-                  &lt;sender@example.com&gt;
+                  &lt;{email.recipientEmail}&gt;
                 </span>
               </div>
               <div
@@ -168,7 +170,7 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
                   cursor: 'pointer',
                 }}
               >
-                <span>to {recipientName}</span>
+                <span>Status: <strong>{email.status}</strong></span>
                 <ChevronDown size={14} />
               </div>
             </div>
@@ -179,11 +181,8 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
           </div>
         </div>
 
-        {/* Email Message Text */}
+        {/* Email Message Content */}
         <div style={{ fontSize: '14.5px', color: '#1F2937', lineHeight: '1.7' }}>
-          <p style={{ marginBottom: '16px' }}>Hey Oliver,</p>
-          <p style={{ marginBottom: '20px' }}>You've just RECEIVED something</p>
-
           {/* Yellow Highlight Banner */}
           <div
             style={{
@@ -197,154 +196,27 @@ export const EmailDetailView: React.FC<EmailDetailViewProps> = ({
           >
             <div style={{ fontWeight: 700, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ color: '#F59E0B' }}>⚡</span>
-              <span>Extremely Exclusive—Only 4 Spots Worldwide Per Year | $25,000 investment</span>
+              <span>Scheduled Job ID: {email.id} | Status: {email.status}</span>
               <span style={{ color: '#F59E0B' }}>⚡</span>
             </div>
-            <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#F59E0B' }}>⚡</span>
-              <span>To explore securing your private transformation, simply reply right now with <strong>"FLY OUT FIX"</strong> .</span>
+            <div style={{ fontSize: '13px', color: '#4B5563' }}>
+              Scheduled for: {new Date(email.scheduledAt).toLocaleString()}
+              {email.sentAt && ` | Sent at: ${new Date(email.sentAt).toLocaleString()}`}
+              {email.lastError && ` | Error: ${email.lastError}`}
             </div>
           </div>
 
-          <p style={{ marginBottom: '16px' }}>Your coach for world-class performance,</p>
-          <p style={{ fontWeight: 600, marginBottom: '24px' }}>Grant</p>
-
-          <p style={{ fontStyle: 'italic', color: '#4B5563', marginBottom: '32px' }}>
-            P.S. Always remember that you can develop world class technique! 🚀
-          </p>
-
-          {/* Dynamic Body content if populated from API */}
-          {email.body && !email.body.includes('Meeting follow-up') && (
-            <div
-              style={{
-                marginTop: '20px',
-                paddingTop: '20px',
-                borderTop: '1px solid #F3F4F6',
-              }}
-              dangerouslySetInnerHTML={{ __html: email.body }}
-            />
-          )}
-
-          {/* Attachment Cards matching Screenshot 4 */}
-          <div style={{ display: 'flex', gap: '16px', marginTop: '24px', flexWrap: 'wrap' }}>
-            {/* Attachment Card 1 */}
-            <div
-              style={{
-                width: '200px',
-                borderRadius: '8px',
-                border: '1px solid #E5E7EB',
-                overflow: 'hidden',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                cursor: 'pointer',
-              }}
-            >
-              {/* Tennis Coach Image / Illustration */}
-              <div
-                style={{
-                  height: '110px',
-                  backgroundColor: '#0284C7',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    background: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FFFFFF',
-                    padding: '8px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: '28px' }}>🎾</span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, marginTop: '4px' }}>Tennis Coach Profile</span>
-                </div>
-              </div>
-              <div style={{ padding: '10px 12px', backgroundColor: '#FFFFFF' }}>
-                <div
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#111827',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Tennis_Coach_Profile.png
-                </div>
-                <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '2px' }}>
-                  1.2 MB
-                </div>
-              </div>
-            </div>
-
-            {/* Attachment Card 2 */}
-            <div
-              style={{
-                width: '200px',
-                borderRadius: '8px',
-                border: '1px solid #E5E7EB',
-                overflow: 'hidden',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                cursor: 'pointer',
-              }}
-            >
-              <div
-                style={{
-                  height: '110px',
-                  backgroundColor: '#0284C7',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    background: 'linear-gradient(135deg, #0369A1 0%, #075985 100%)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FFFFFF',
-                    padding: '8px',
-                    textAlign: 'center',
-                  }}
-                >
-                  <span style={{ fontSize: '28px' }}>🎾</span>
-                  <span style={{ fontSize: '11px', fontWeight: 600, marginTop: '4px' }}>Tennis Coach Profile 2</span>
-                </div>
-              </div>
-              <div style={{ padding: '10px 12px', backgroundColor: '#FFFFFF' }}>
-                <div
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#111827',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  Tennis_Coach_Profile2.png
-                </div>
-                <div style={{ fontSize: '11px', color: '#9CA3AF', marginTop: '2px' }}>
-                  1.2 MB
-                </div>
-              </div>
-            </div>
+          {/* Email Body from PostgreSQL */}
+          <div
+            style={{
+              whiteSpace: 'pre-wrap',
+              fontSize: '14.5px',
+              color: '#111827',
+              lineHeight: '1.7',
+              marginBottom: '24px',
+            }}
+          >
+            {email.body}
           </div>
         </div>
       </div>
