@@ -7,6 +7,7 @@ export const EmailJobStatus = {
   RETRYING: 'RETRYING',
   SENT: 'SENT',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 } as const;
 
 export type EmailJobStatusType = (typeof EmailJobStatus)[keyof typeof EmailJobStatus];
@@ -125,4 +126,47 @@ export async function getEmailJobs() {
       scheduledAt: 'desc',
     },
   });
+}
+
+export async function cancelEmailJob(emailJobId: string) {
+  // 1. Fetch EmailJob from PostgreSQL
+  const emailJob = await prisma.emailJob.findUnique({
+    where: { id: emailJobId },
+  });
+
+  if (!emailJob) {
+    const error = new Error(`Email job with ID ${emailJobId} not found`);
+    (error as any).statusCode = 404;
+    throw error;
+  }
+
+  // 2. Only allow cancellation when status is SCHEDULED
+  if (emailJob.status !== EmailJobStatus.SCHEDULED) {
+    const error = new Error(`Cannot cancel email job with status ${emailJob.status}`);
+    (error as any).statusCode = 400;
+    throw error;
+  }
+
+  // 3. Remove BullMQ job safely from Redis queue if bullJobId exists
+  if (emailJob.bullJobId) {
+    try {
+      const bullJob = await emailQueue.getJob(emailJob.bullJobId);
+      if (bullJob) {
+        await bullJob.remove();
+        console.log(`[Queue Info] Successfully removed BullMQ job ${emailJob.bullJobId} from queue.`);
+      }
+    } catch (queueErr) {
+      console.warn(`[Queue Warning] Could not remove BullMQ job ${emailJob.bullJobId}:`, queueErr);
+    }
+  }
+
+  // 4. Update status to CANCELLED in PostgreSQL
+  const cancelledJob = await prisma.emailJob.update({
+    where: { id: emailJobId },
+    data: {
+      status: EmailJobStatus.CANCELLED,
+    },
+  });
+
+  return cancelledJob;
 }

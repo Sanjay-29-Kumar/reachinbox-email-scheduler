@@ -13,6 +13,7 @@ export const EmailJobStatus = {
   RETRYING: 'RETRYING',
   SENT: 'SENT',
   FAILED: 'FAILED',
+  CANCELLED: 'CANCELLED',
 } as const;
 
 const concurrency = parseInt(process.env.EMAIL_WORKER_CONCURRENCY || '5', 10);
@@ -44,12 +45,18 @@ export const emailWorker = new Worker<EmailJobData>(
       return;
     }
 
-    // 3. Atomic transition: SCHEDULED / RETRYING -> PROCESSING & update attempts
+    // 3. Safe check: If CANCELLED, exit safely without sending
+    if (emailJob.status === EmailJobStatus.CANCELLED) {
+      console.log(`[Worker] EmailJob ${emailJobId} is CANCELLED. Skipping.`);
+      return;
+    }
+
+    // 4. Atomic transition: SCHEDULED / RETRYING -> PROCESSING & update attempts
     const updateResult = await prisma.emailJob.updateMany({
       where: {
         id: emailJobId,
         status: {
-          in: [EmailJobStatus.SCHEDULED, EmailJobStatus.RETRYING, EmailJobStatus.PROCESSING],
+          in: [EmailJobStatus.SCHEDULED, EmailJobStatus.RETRYING],
         },
       },
       data: {
@@ -59,13 +66,13 @@ export const emailWorker = new Worker<EmailJobData>(
     });
 
     if (updateResult.count === 0) {
-      console.log(`[Worker] EmailJob ${emailJobId} status transition ignored. Skipping.`);
+      console.log(`[Worker] EmailJob ${emailJobId} status transition ignored (Current status: ${emailJob.status}). Skipping.`);
       return;
     }
 
     console.log(`[Worker] Processing email send (Attempt ${currentAttempt}/${maxAttempts}) for recipient: ${emailJob.recipientEmail}, Subject: "${emailJob.subject}"`);
 
-    // 4. Call Real Email Sending Service
+    // 5. Call Real Email Sending Service
     try {
       await sendEmail({
         to: emailJob.recipientEmail,
@@ -73,7 +80,7 @@ export const emailWorker = new Worker<EmailJobData>(
         text: emailJob.body,
       });
 
-      // 5. On Success: Update status to SENT, set sentAt, clear lastError
+      // 6. On Success: Update status to SENT, set sentAt, clear lastError
       await prisma.emailJob.update({
         where: { id: emailJobId },
         data: {
@@ -88,7 +95,7 @@ export const emailWorker = new Worker<EmailJobData>(
       const errorMessage = sendError instanceof Error ? sendError.message : 'Unknown email send error';
       console.error(`[Worker Error] Send failed for EmailJob ${emailJobId} (Attempt ${currentAttempt}/${maxAttempts}): ${errorMessage}`);
 
-      // 6. Check if retries remain in BullMQ
+      // 7. Check if retries remain in BullMQ
       if (currentAttempt < maxAttempts) {
         console.log(`[Worker] Retries remaining (${maxAttempts - currentAttempt}). Updating status to RETRYING for EmailJob ${emailJobId}.`);
         await prisma.emailJob.update({

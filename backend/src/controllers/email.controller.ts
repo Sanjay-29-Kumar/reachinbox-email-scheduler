@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { scheduleEmail, getEmailJobs } from '../services/email.service';
+import { scheduleEmail, getEmailJobs, cancelEmailJob } from '../services/email.service';
 import prisma from '../lib/prisma';
 
 export async function scheduleEmailHandler(req: Request, res: Response) {
@@ -82,6 +82,28 @@ export async function getEmailsHandler(req: Request, res: Response) {
     return res.status(500).json({
       success: false,
       message: error?.message || 'Failed to fetch email jobs',
+    });
+  }
+}
+
+export async function cancelEmailHandler(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ success: false, message: 'Email job ID is required' });
+    }
+
+    const cancelledJob = await cancelEmailJob(id);
+    return res.status(200).json({
+      success: true,
+      message: 'Email job cancelled successfully',
+      data: cancelledJob,
+    });
+  } catch (error: any) {
+    const statusCode = error?.statusCode || 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error?.message || 'Failed to cancel email job',
     });
   }
 }

@@ -184,8 +184,15 @@ MODULE 4 — Retry & Failure Handling
 - [x] Safe failure error handling (`lastError` sanitized message)
 - [x] Retry lifecycle (SCHEDULED / RETRYING -> PROCESSING -> SENT or FAILED)
 - [x] Final FAILED status when max attempts exhausted
+
+MODULE 5 — Cancel Scheduled Emails
+- [x] CANCELLED enum value added to EmailJobStatus in schema.prisma
+- [x] Database migration applied (`add_cancelled_email_status`)
+- [x] `cancelEmailJob` function in `email.service.ts` removing BullMQ job & updating DB
+- [x] `DELETE /api/emails/:id` route & controller handler
+- [x] Worker safety guard skipping CANCELLED jobs
 - [x] TypeScript verification (npx tsc --noEmit: 0 errors)
-- [x] End-to-end verification (Verified successful 1st attempt send & forced 3-attempt failure retry sequence)
+- [x] End-to-end cancellation test (Verified BullMQ removal, DB CANCELLED status, no send execution, and edge case HTTP status codes 404/400)
 
 CURRENT PROJECT STATUS
 
@@ -196,7 +203,8 @@ Completed:
 - Elasticsearch infrastructure
 - BullMQ email scheduling queue
 - Real email delivery via Nodemailer + SMTP
-- Retry & failure handling with exponential backoff & attempt tracking
+- Retry & failure handling with exponential backoff
+- Cancel scheduled emails endpoint & worker guard
 
 Next module:
 Hourly Rate Limiting
