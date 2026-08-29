@@ -5,7 +5,7 @@ import { Worker, Job } from 'bullmq';
 import { EMAIL_QUEUE_NAME, emailQueue, EmailJobData } from '../queues/email.queue';
 import { redisConnectionOptions } from '../lib/redis';
 import prisma from '../lib/prisma';
-import { sendEmail } from '../lib/email';
+import { getEmailProvider } from '../providers/emailProvider.factory';
 import { consumeRateLimitQuota, getMsUntilNextHour } from '../lib/rateLimiter';
 import { updateEmailJobInElasticsearch } from '../services/elasticsearch.service';
 import {
@@ -137,13 +137,16 @@ export const emailWorker = new Worker<EmailJobData>(
 
     console.log(`[Worker] Processing email send (Attempt ${currentAttempt}/${maxAttempts}) for recipient: ${emailJob.recipientEmail}, Subject: "${emailJob.subject}"`);
 
-    // 6. Call Real Email Sending Service
+    // 6. Call Real Email Delivery Service via Provider Abstraction
     try {
-      await sendEmail({
+      const emailProvider = getEmailProvider();
+      const sendResult = await emailProvider.send({
         to: emailJob.recipientEmail,
         subject: emailJob.subject,
         text: emailJob.body,
       });
+
+      console.log(`[Worker] Delivered email via provider "${sendResult.provider}" (MsgID: ${sendResult.messageId})`);
 
       const sentAtDate = new Date();
 

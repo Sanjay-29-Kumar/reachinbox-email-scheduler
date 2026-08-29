@@ -24,7 +24,7 @@ Infrastructure:
 Integrations:
 - Google OAuth
 - Slack OAuth
-- Ethereal Email / Nodemailer
+- Resend HTTP API Provider / Mock Testing Provider
 
 COMPLETE EMAIL SCHEDULING FLOW
 
@@ -44,9 +44,10 @@ User
 → Worker picks up job
 → Redis-backed hourly rate limit checked
 → If limit available:
-    → Email sent through Ethereal SMTP
+    → Email sent through configured EmailProvider (Resend API / Mock)
     → Database updated to SENT
     → Elasticsearch index updated
+    → Prometheus metrics updated
 → If rate limit exceeded:
     → Job is delayed/rescheduled to next available window
     → Slack notification sent if Slack is connected
@@ -88,7 +89,7 @@ RATE LIMITING FLOW
 Worker receives job
 → Check Redis counter using sender + current hour
 → Limit available?
-    YES → Increment counter → Send email
+    YES → Increment counter → Send email via EmailProvider
     NO → Do not drop job
           → Calculate next available time
           → Reschedule/delay job
@@ -154,7 +155,8 @@ FINAL SYSTEM ARCHITECTURE
                                │
                     ┌──────────┴──────────┐
                     ▼                     ▼
-              Ethereal SMTP           Slack API
+             EmailProvider          Slack API
+             (Resend API / Mock)
 
 MODULE 1 — Infrastructure
 - [x] Express + TypeScript backend
@@ -170,10 +172,8 @@ MODULE 2 — Email Scheduling
 - [x] Email worker with configurable concurrency
 - [x] Idempotency using idempotencyKey
 
-MODULE 3 — Real Email Sending with Nodemailer + SMTP
-- [x] SMTP configuration via environment variables
-- [x] Reusable Nodemailer transport module with Ethereal fallback
-- [x] Real email sending integrated inside BullMQ worker
+MODULE 3 — Real Email Sending Core
+- [x] Email sending integrated inside BullMQ worker via Provider Abstraction
 - [x] State transitions: SCHEDULED -> PROCESSING -> SENT
 - [x] sentAt timestamp updated on delivery
 
@@ -224,6 +224,14 @@ MODULE 8 — Observability & Metrics
 - [x] Error isolation ensuring metrics failures never affect core email delivery
 - [x] Automated test script (`npm run test:metrics`)
 
+MODULE 9A — Complete Removal of Nodemailer & Resend Production Provider Finalization
+- [x] Completely removed Nodemailer & Ethereal dependencies and imports (0 references remaining)
+- [x] `EmailProvider` interface & contract (`backend/src/providers/emailProvider.interface.ts`)
+- [x] Factory pattern (`backend/src/providers/emailProvider.factory.ts`) defaulting to `ResendEmailProvider`
+- [x] Production `ResendEmailProvider` (`backend/src/providers/resendProvider.ts`) via standard `fetch`
+- [x] Testing `MockEmailProvider` (`backend/src/providers/mockProvider.ts`)
+- [x] Automated provider test suite (`npm run test:provider`) with mocked `fetch` API response testing
+
 CURRENT PROJECT STATUS
 
 Completed:
@@ -232,8 +240,8 @@ Completed:
 - Redis infrastructure
 - Elasticsearch infrastructure & full-text search API
 - Prometheus metrics & observability endpoint (`GET /metrics`)
+- Production Resend HTTP API Email Provider & Mock Provider
 - BullMQ email scheduling queue
-- Real email delivery via Nodemailer + SMTP
 - Retry & failure handling with exponential backoff
 - Cancel scheduled emails endpoint & worker guard
 - Distributed hourly rate limiting with atomic Lua script and job rescheduling
