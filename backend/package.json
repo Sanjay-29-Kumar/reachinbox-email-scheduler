@@ -8,6 +8,8 @@
     "worker": "tsx watch src/workers/email.worker.ts",
     "seed": "npx tsx src/scripts/seed.ts",
     "test:ratelimit": "npx tsx src/scripts/testRateLimiter.ts",
+    "es:index": "npx tsx src/scripts/initElasticsearch.ts",
+    "test:es": "npx tsx src/scripts/testElasticsearch.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,6 +19,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@elastic/elasticsearch": "^8.19.2",
     "@prisma/client": "^6.4.0",
     "bullmq": "^6.3.1",
     "cors": "^2.8.6",

@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma';
 import { emailQueue } from '../queues/email.queue';
+import { indexEmailJob, updateEmailJobInElasticsearch } from './elasticsearch.service';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -109,6 +110,13 @@ export async function scheduleEmail(input: ScheduleEmailInput) {
       data: { bullJobId: String(bullJob.id) },
     });
 
+    // 7. Index in Elasticsearch safely (try/catch ensures ES failure never breaks core flow)
+    try {
+      await indexEmailJob(updatedJob);
+    } catch (esErr) {
+      console.warn(`[Elasticsearch Warning] ES Indexing failed for EmailJob ${updatedJob.id}:`, esErr);
+    }
+
     return updatedJob;
   } catch (queueError) {
     console.error(`[Queue Error] Failed to enqueue job for EmailJob ${emailJob.id}:`, queueError);
@@ -167,6 +175,13 @@ export async function cancelEmailJob(emailJobId: string) {
       status: EmailJobStatus.CANCELLED,
     },
   });
+
+  // 5. Update status to CANCELLED in Elasticsearch safely
+  try {
+    await updateEmailJobInElasticsearch(emailJobId, { status: EmailJobStatus.CANCELLED });
+  } catch (esErr) {
+    console.warn(`[Elasticsearch Warning] ES Cancel update failed for EmailJob ${emailJobId}:`, esErr);
+  }
 
   return cancelledJob;
 }

@@ -33,7 +33,7 @@
 | **Module 4** | **Retry & Failure Handling** | **COMPLETED & COMMITTED** | BullMQ attempts (`EMAIL_MAX_ATTEMPTS=3`), exponential backoff (`EMAIL_RETRY_DELAY=5000`), DB fields `attempts` & `lastError`, `RETRYING` state, `FAILED` state fallback. |
 | **Module 5** | **Cancel Scheduled Emails** | **COMPLETED (UNCOMMITTED)** | `CANCELLED` status, `cancelEmailJob` service, `DELETE /api/emails/:id` endpoint, BullMQ queue job removal, worker safety guard. |
 | **Module 6** | **Hourly Rate Limiting** | **COMPLETED (UNCOMMITTED)** | Redis-backed distributed hourly counter per sender (`rate_limit:{senderId}:{yyyy-MM-dd-HH}`), atomic Lua script counter, BullMQ job rescheduling to start of next hour without consuming retries or setting `FAILED`. |
-| **Module 7** | **Elasticsearch Indexing & Search API** | **NOT STARTED** | Real-time indexing of email jobs in Elasticsearch, `/api/emails/search` full-text search API. |
+| **Module 7** | **Elasticsearch Indexing & Search API** | **COMPLETED (UNCOMMITTED)** | Real-time Elasticsearch indexing (`email-jobs`), explicit field mappings, full-text multi-match search API (`GET /api/emails/search`), reindex script (`npm run es:index`), safe async sync across all email job state transitions. |
 | **Module 8** | **Google OAuth & Authentication** | **NOT STARTED** | Google OAuth 2.0 integration, JWT session management, protected endpoints. |
 | **Module 9** | **Slack Integration & Notifications** | **NOT STARTED** | Slack OAuth integration, webhook alerts for rate limit events & delivery failures. |
 | **Module 10** | **Bull Board Admin Dashboard** | **NOT STARTED** | Bull Board UI integration for monitoring Redis queues and job lifecycles. |

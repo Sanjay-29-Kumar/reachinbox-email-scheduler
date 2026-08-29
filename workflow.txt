@@ -202,13 +202,24 @@ MODULE 6 — Hourly Rate Limiting
 - [x] Integration with cancellation and retry mechanics verified
 - [x] TypeScript verification (npx tsc --noEmit: 0 errors)
 
+MODULE 7 — Elasticsearch Indexing & Search API
+- [x] `@elastic/elasticsearch` client module (`backend/src/lib/elasticsearch.ts`)
+- [x] Index `email-jobs` with explicit mapping for subject, body, recipientEmail, status, timestamps
+- [x] Elasticsearch service (`indexEmailJob`, `updateEmailJobInElasticsearch`, `searchEmailJobs`)
+- [x] Non-blocking safe indexing on `POST /api/emails/schedule`
+- [x] Document status synchronization across all state transitions (`SCHEDULED`, `PROCESSING`, `RETRYING`, `SENT`, `FAILED`, `CANCELLED`)
+- [x] Search API (`GET /api/emails/search?q=<query>&status=<status>`) with full-text search and status filtering
+- [x] Reindex script (`npm run es:index`)
+- [x] Safe error handling when Elasticsearch is offline
+- [x] Verified directly on raw Elasticsearch cluster and via REST endpoints
+
 CURRENT PROJECT STATUS
 
 Completed:
 - Express + TypeScript backend
 - PostgreSQL + Prisma
 - Redis infrastructure
-- Elasticsearch infrastructure
+- Elasticsearch infrastructure & full-text search API
 - BullMQ email scheduling queue
 - Real email delivery via Nodemailer + SMTP
 - Retry & failure handling with exponential backoff
@@ -216,4 +227,4 @@ Completed:
 - Distributed hourly rate limiting with atomic Lua script and job rescheduling
 
 Next module:
-Elasticsearch Indexing & Search API
+Google OAuth & Authentication

@@ -7,6 +7,7 @@ import { redisConnectionOptions } from '../lib/redis';
 import prisma from '../lib/prisma';
 import { sendEmail } from '../lib/email';
 import { consumeRateLimitQuota, getMsUntilNextHour } from '../lib/rateLimiter';
+import { updateEmailJobInElasticsearch } from '../services/elasticsearch.service';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -88,6 +89,12 @@ export const emailWorker = new Worker<EmailJobData>(
         },
       });
 
+      // Update Elasticsearch
+      updateEmailJobInElasticsearch(emailJob.id, {
+        status: EmailJobStatus.SCHEDULED,
+        bullJobId: String(rescheduledBullJob.id),
+      }).catch((esErr) => console.warn(`[ES Warning] Rate limit reschedule sync failed for ${emailJob.id}:`, esErr));
+
       return; // Exit cleanly without throwing an error
     }
 
@@ -110,6 +117,12 @@ export const emailWorker = new Worker<EmailJobData>(
       return;
     }
 
+    // Update Elasticsearch document to PROCESSING
+    updateEmailJobInElasticsearch(emailJobId, {
+      status: EmailJobStatus.PROCESSING,
+      attempts: currentAttempt,
+    }).catch((esErr) => console.warn(`[ES Warning] Processing sync failed for ${emailJobId}:`, esErr));
+
     console.log(`[Worker] Processing email send (Attempt ${currentAttempt}/${maxAttempts}) for recipient: ${emailJob.recipientEmail}, Subject: "${emailJob.subject}"`);
 
     // 6. Call Real Email Sending Service
@@ -120,15 +133,24 @@ export const emailWorker = new Worker<EmailJobData>(
         text: emailJob.body,
       });
 
+      const sentAtDate = new Date();
+
       // 7. On Success: Update status to SENT, set sentAt, clear lastError
       await prisma.emailJob.update({
         where: { id: emailJobId },
         data: {
           status: EmailJobStatus.SENT,
-          sentAt: new Date(),
+          sentAt: sentAtDate,
           lastError: null,
         },
       });
+
+      // Sync SENT status to Elasticsearch
+      updateEmailJobInElasticsearch(emailJobId, {
+        status: EmailJobStatus.SENT,
+        sentAt: sentAtDate,
+        lastError: null,
+      }).catch((esErr) => console.warn(`[ES Warning] SENT sync failed for ${emailJobId}:`, esErr));
 
       console.log(`[Worker] Successfully sent email (Attempt ${currentAttempt}/${maxAttempts}) and updated EmailJob ${emailJobId} to SENT.`);
     } catch (sendError: any) {
@@ -145,6 +167,11 @@ export const emailWorker = new Worker<EmailJobData>(
             lastError: errorMessage,
           },
         });
+
+        updateEmailJobInElasticsearch(emailJobId, {
+          status: EmailJobStatus.RETRYING,
+          lastError: errorMessage,
+        }).catch((esErr) => console.warn(`[ES Warning] RETRYING sync failed for ${emailJobId}:`, esErr));
       } else {
         console.log(`[Worker] Max attempts (${maxAttempts}) exhausted. Updating status to FAILED for EmailJob ${emailJobId}.`);
         await prisma.emailJob.update({
@@ -154,6 +181,11 @@ export const emailWorker = new Worker<EmailJobData>(
             lastError: errorMessage,
           },
         });
+
+        updateEmailJobInElasticsearch(emailJobId, {
+          status: EmailJobStatus.FAILED,
+          lastError: errorMessage,
+        }).catch((esErr) => console.warn(`[ES Warning] FAILED sync failed for ${emailJobId}:`, esErr));
       }
 
       // Re-throw error so BullMQ handles exponential backoff retry scheduling or job failure

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { scheduleEmail, getEmailJobs, cancelEmailJob } from '../services/email.service';
+import { scheduleEmail, getEmailJobs, cancelEmailJob, EmailJobStatus } from '../services/email.service';
+import { searchEmailJobs } from '../services/elasticsearch.service';
 import prisma from '../lib/prisma';
 
 export async function scheduleEmailHandler(req: Request, res: Response) {
@@ -104,6 +105,46 @@ export async function cancelEmailHandler(req: Request, res: Response) {
     return res.status(statusCode).json({
       success: false,
       message: error?.message || 'Failed to cancel email job',
+    });
+  }
+}
+
+export async function searchEmailsHandler(req: Request, res: Response) {
+  try {
+    const query = (req.query.q || req.query.query) as string;
+    const status = req.query.status as string;
+
+    if (!query || typeof query !== 'string' || query.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Query parameter q is required',
+      });
+    }
+
+    const validStatuses = Object.values(EmailJobStatus);
+    if (status && !validStatuses.includes(status.trim().toUpperCase() as any)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status filter. Allowed values: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    const searchResults = await searchEmailJobs({
+      query,
+      status,
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: searchResults.results.length,
+      total: searchResults.total,
+      data: searchResults.results,
+    });
+  } catch (error: any) {
+    console.error('Elasticsearch search error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Failed to execute search on Elasticsearch',
     });
   }
 }
