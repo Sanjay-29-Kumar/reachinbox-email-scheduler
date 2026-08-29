@@ -14,8 +14,6 @@ import {
   AlignLeft,
   List,
   ListOrdered,
-  Indent,
-  Outdent,
   Quote,
   Link,
   Strikethrough,
@@ -37,7 +35,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
   user,
   accounts,
 }) => {
-  const initialFrom = accounts[0]?.email || user?.email || '';
+  const initialFrom = accounts[0]?.email || user?.email || 'oliver.brown@domain.io';
 
   const [fromEmail, setFromEmail] = useState(initialFrom);
   const [showFromDropdown, setShowFromDropdown] = useState(false);
@@ -49,7 +47,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
   const [hourlyLimit, setHourlyLimit] = useState('00');
 
   // Attachments
-  const [attachments, setAttachments] = useState<Array<{ name: string; size: string; previewUrl: string }>>([]);
+  const [attachments, setAttachments] = useState<Array<{ name: string; size: string }>>([]);
 
   // Send Later Popover state
   const [showSendLater, setShowSendLater] = useState(false);
@@ -107,29 +105,6 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
     setRecipientList((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Handle Quick Schedule Presets
-  const applyPreset = (preset: string) => {
-    setSelectedQuickPreset(preset);
-    const now = new Date();
-    const target = new Date(now);
-
-    if (preset === 'Tomorrow') {
-      target.setDate(target.getDate() + 1);
-      target.setHours(9, 0, 0, 0);
-    } else if (preset === 'Tomorrow, 10:00 AM') {
-      target.setDate(target.getDate() + 1);
-      target.setHours(10, 0, 0, 0);
-    } else if (preset === 'Tomorrow, 11:00 AM') {
-      target.setDate(target.getDate() + 1);
-      target.setHours(11, 0, 0, 0);
-    } else if (preset === 'Tomorrow, 3:00 PM') {
-      target.setDate(target.getDate() + 1);
-      target.setHours(15, 0, 0, 0);
-    }
-
-    setScheduledDateTime(target.toISOString().slice(0, 16));
-  };
-
   const handleSend = async () => {
     const allRecipients = [...recipientList];
     if (recipientInput.trim() && recipientInput.includes('@')) {
@@ -175,7 +150,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
       setSuccessMessage('Email scheduled successfully!');
       setTimeout(() => {
         onEmailScheduled();
-      }, 500);
+      }, 600);
     } catch (err: any) {
       console.error('Failed to send email:', err);
       setErrorMessage(err?.message || 'Failed to schedule email');
@@ -196,32 +171,35 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
         backgroundColor: '#FFFFFF',
         position: 'relative',
         overflowY: 'auto',
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Top Bar */}
+      {/* Top Bar matching Exact Screenshot */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '16px 24px',
-          borderBottom: '1px solid #F3F4F6',
+          padding: '16px 28px',
+          borderBottom: '1px solid #F1F5F9',
         }}
       >
         {/* Back Arrow + Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
             onClick={onBack}
             style={{
               padding: '6px',
               borderRadius: '50%',
-              color: '#374151',
+              color: '#1E293B',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#F3F4F6';
+              e.currentTarget.style.backgroundColor = '#F1F5F9';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent';
@@ -230,7 +208,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             <ArrowLeft size={20} />
           </button>
 
-          <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+          <h2 style={{ fontSize: '19px', fontWeight: 600, color: '#0F172A', letterSpacing: '-0.2px' }}>
             Compose New Email
           </h2>
         </div>
@@ -242,7 +220,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             <button
               title="Attach file"
               onClick={() => fileInputRef.current?.click()}
-              style={{ color: '#00A859', display: 'flex', alignItems: 'center', gap: '2px' }}
+              style={{ color: '#00A859', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
             >
               <Paperclip size={19} />
               {attachments.length > 0 && (
@@ -251,7 +229,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
                     fontSize: '11px',
                     fontWeight: 700,
                     color: '#00A859',
-                    marginLeft: '-2px',
+                    marginLeft: '2px',
                   }}
                 >
                   {attachments.length}
@@ -267,7 +245,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
                 if (file) {
                   setAttachments((prev) => [
                     ...prev,
-                    { name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`, previewUrl: '' },
+                    { name: file.name, size: `${(file.size / (1024 * 1024)).toFixed(1)} MB` },
                   ]);
                 }
               }}
@@ -276,17 +254,19 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
 
           {/* Clock Icon */}
           <button
-            title="Send Later options"
+            title="Schedule options"
             onClick={() => setShowSendLater(!showSendLater)}
             style={{
               color: '#00A859',
-              transition: 'color 0.15s ease',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
             }}
           >
             <Clock size={19} />
           </button>
 
-          {/* Send Later Button */}
+          {/* Send Later Pill Button */}
           <button
             onClick={handleSend}
             disabled={isSubmitting}
@@ -302,7 +282,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+              cursor: 'pointer',
               transition: 'all 0.15s ease',
               opacity: isSubmitting ? 0.6 : 1,
             }}
@@ -349,22 +329,22 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
       )}
 
       {/* Main Compose Form */}
-      <div style={{ padding: '24px 32px', maxWidth: '900px' }}>
+      <div style={{ padding: '28px 48px', maxWidth: '880px' }}>
         {/* From Row */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '24px',
-            marginBottom: '16px',
+            gap: '28px',
+            marginBottom: '20px',
             position: 'relative',
           }}
         >
           <span
             style={{
-              width: '50px',
+              width: '60px',
               fontSize: '14px',
-              color: '#6B7280',
+              color: '#334155',
               fontWeight: 500,
             }}
           >
@@ -376,17 +356,20 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              backgroundColor: '#F3F4F6',
+              backgroundColor: '#F1F5F9',
               borderRadius: '8px',
-              padding: '6px 12px',
-              fontSize: '13px',
-              color: '#374151',
+              padding: '6px 14px',
+              fontSize: '13.5px',
+              color: '#1E293B',
               fontWeight: 500,
               cursor: 'pointer',
+              transition: 'background-color 0.15s ease',
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E2E8F0')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
           >
-            <span>{fromEmail || 'Select Sender'}</span>
-            <ChevronDown size={14} color="#6B7280" />
+            <span>{fromEmail || 'oliver.brown@domain.io'}</span>
+            <ChevronDown size={14} color="#64748B" />
           </div>
 
           {showFromDropdown && accounts.length > 0 && (
@@ -394,12 +377,12 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               style={{
                 position: 'absolute',
                 top: '100%',
-                left: '74px',
+                left: '88px',
                 marginTop: '4px',
                 backgroundColor: '#FFFFFF',
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                border: '1px solid #E5E7EB',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                border: '1px solid #E2E8F0',
                 padding: '4px',
                 zIndex: 30,
               }}
@@ -412,13 +395,13 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
                     setShowFromDropdown(false);
                   }}
                   style={{
-                    padding: '6px 12px',
+                    padding: '8px 14px',
                     fontSize: '13px',
                     cursor: 'pointer',
-                    color: '#374151',
-                    borderRadius: '4px',
+                    color: '#1E293B',
+                    borderRadius: '6px',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F3F4F6')}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F1F5F9')}
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
                   {acc.email}
@@ -428,146 +411,134 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
           )}
         </div>
 
-        {/* To Row with Upload List */}
+        {/* To Row with Underline */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-            marginBottom: '16px',
-            borderBottom: '1px solid #F3F4F6',
-            paddingBottom: '12px',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
-            <span
-              style={{
-                width: '50px',
-                fontSize: '14px',
-                color: '#6B7280',
-                fontWeight: 500,
-                flexShrink: 0,
-              }}
-            >
-              To
-            </span>
-
-            {/* Recipient Pills */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
-              {visibleRecipients.map((rec, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    backgroundColor: '#E8F7EE',
-                    borderRadius: '9999px',
-                    padding: '4px 12px',
-                    fontSize: '13px',
-                    color: '#111827',
-                    fontWeight: 500,
-                    border: '1px solid #C6EED4',
-                  }}
-                >
-                  <span>{rec}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveRecipient(idx)}
-                    style={{ color: '#6B7280', marginLeft: '2px', display: 'flex', alignItems: 'center' }}
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
-
-              {extraCount > 0 && (
-                <div
-                  style={{
-                    backgroundColor: '#E8F7EE',
-                    borderRadius: '9999px',
-                    padding: '4px 10px',
-                    fontSize: '12px',
-                    color: '#111827',
-                    fontWeight: 600,
-                    border: '1px solid #C6EED4',
-                  }}
-                >
-                  +{extraCount}
-                </div>
-              )}
-
-              {/* Text input for recipients */}
-              <input
-                type="email"
-                value={recipientInput}
-                onChange={(e) => setRecipientInput(e.target.value)}
-                onKeyDown={handleAddRecipient}
-                placeholder={recipientList.length === 0 ? 'recipient@example.com (press Enter to add)' : 'Add more...'}
-                style={{
-                  fontSize: '14px',
-                  color: '#111827',
-                  backgroundColor: 'transparent',
-                  minWidth: '200px',
-                  flex: 1,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Upload List Button */}
-          <div>
-            <button
-              type="button"
-              onClick={() => uploadListInputRef.current?.click()}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#00A859',
-                padding: '4px 8px',
-                borderRadius: '6px',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#E8F7EE';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <Upload size={15} />
-              <span>Upload List</span>
-            </button>
-            <input
-              type="file"
-              ref={uploadListInputRef}
-              accept=".csv,.txt"
-              style={{ display: 'none' }}
-              onChange={handleUploadList}
-            />
-          </div>
-        </div>
-
-        {/* Subject Row */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '24px',
+            gap: '28px',
             marginBottom: '20px',
-            borderBottom: '1px solid #F3F4F6',
+            borderBottom: '1px solid #F1F5F9',
             paddingBottom: '12px',
           }}
         >
           <span
             style={{
-              width: '50px',
+              width: '60px',
               fontSize: '14px',
-              color: '#6B7280',
+              color: '#334155',
+              fontWeight: 500,
+              flexShrink: 0,
+            }}
+          >
+            To
+          </span>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', flex: 1 }}>
+            {visibleRecipients.map((rec, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  backgroundColor: '#E8F7EE',
+                  borderRadius: '9999px',
+                  padding: '3px 10px',
+                  fontSize: '13px',
+                  color: '#111827',
+                  fontWeight: 500,
+                  border: '1px solid #C6EED4',
+                }}
+              >
+                <span>{rec}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveRecipient(idx)}
+                  style={{ color: '#6B7280', display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+
+            {extraCount > 0 && (
+              <div
+                style={{
+                  backgroundColor: '#E8F7EE',
+                  borderRadius: '9999px',
+                  padding: '3px 8px',
+                  fontSize: '12px',
+                  color: '#111827',
+                  fontWeight: 600,
+                  border: '1px solid #C6EED4',
+                }}
+              >
+                +{extraCount}
+              </div>
+            )}
+
+            <input
+              type="email"
+              value={recipientInput}
+              onChange={(e) => setRecipientInput(e.target.value)}
+              onKeyDown={handleAddRecipient}
+              placeholder="recipient@example.com"
+              style={{
+                fontSize: '14px',
+                color: '#1E293B',
+                backgroundColor: 'transparent',
+                border: 'none',
+                outline: 'none',
+                minWidth: '220px',
+                flex: 1,
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => uploadListInputRef.current?.click()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              color: '#00A859',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            <Upload size={14} />
+            <span>Upload List</span>
+          </button>
+          <input
+            type="file"
+            ref={uploadListInputRef}
+            accept=".csv,.txt"
+            style={{ display: 'none' }}
+            onChange={handleUploadList}
+          />
+        </div>
+
+        {/* Subject Row with Underline */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '28px',
+            marginBottom: '24px',
+            borderBottom: '1px solid #F1F5F9',
+            paddingBottom: '12px',
+          }}
+        >
+          <span
+            style={{
+              width: '60px',
+              fontSize: '14px',
+              color: '#334155',
               fontWeight: 500,
             }}
           >
@@ -581,8 +552,10 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             style={{
               flex: 1,
               fontSize: '14px',
-              color: '#111827',
+              color: '#1E293B',
               backgroundColor: 'transparent',
+              border: 'none',
+              outline: 'none',
             }}
           />
         </div>
@@ -592,13 +565,14 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '32px',
-            marginBottom: '24px',
+            gap: '36px',
+            marginBottom: '28px',
+            flexWrap: 'wrap',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '13px', color: '#4B5563', fontWeight: 500 }}>
-              Delay between 2 emails (sec)
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <span style={{ fontSize: '13.5px', color: '#334155', fontWeight: 500 }}>
+              Delay between 2 emails
             </span>
             <input
               type="text"
@@ -606,20 +580,21 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               onChange={(e) => setDelayBetweenEmails(e.target.value)}
               placeholder="00"
               style={{
-                width: '48px',
-                height: '32px',
+                width: '56px',
+                height: '34px',
                 textAlign: 'center',
                 backgroundColor: '#FFFFFF',
-                border: '1px solid #E5E7EB',
-                borderRadius: '6px',
-                fontSize: '13px',
-                color: '#111827',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '13.5px',
+                color: '#334155',
+                outline: 'none',
               }}
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '13px', color: '#4B5563', fontWeight: 500 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <span style={{ fontSize: '13.5px', color: '#334155', fontWeight: 500 }}>
               Hourly Limit
             </span>
             <input
@@ -628,113 +603,140 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               onChange={(e) => setHourlyLimit(e.target.value)}
               placeholder="00"
               style={{
-                width: '48px',
-                height: '32px',
+                width: '56px',
+                height: '34px',
                 textAlign: 'center',
                 backgroundColor: '#FFFFFF',
-                border: '1px solid #E5E7EB',
-                borderRadius: '6px',
-                fontSize: '13px',
-                color: '#111827',
+                border: '1px solid #E2E8F0',
+                borderRadius: '8px',
+                fontSize: '13.5px',
+                color: '#334155',
+                outline: 'none',
               }}
             />
           </div>
         </div>
 
-        {/* Rich Text Editor Container */}
+        {/* Email Body & Editor Container matching Screenshot */}
         <div
           style={{
-            border: '1px solid #F3F4F6',
-            borderRadius: '12px',
+            border: '1px solid #F1F5F9',
+            borderRadius: '14px',
             overflow: 'hidden',
-            backgroundColor: '#FAFAFA',
-            marginBottom: '24px',
+            backgroundColor: '#F8FAFC',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
           }}
         >
-          {/* Formatting Toolbar */}
+          {/* Main Text Input Area */}
+          <div style={{ padding: '18px 20px 10px 20px' }}>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Type Your Reply..."
+              rows={8}
+              style={{
+                width: '100%',
+                fontSize: '14px',
+                color: '#1E293B',
+                backgroundColor: 'transparent',
+                border: 'none',
+                outline: 'none',
+                resize: 'vertical',
+                lineHeight: '1.6',
+                fontFamily: 'inherit',
+              }}
+            />
+          </div>
+
+          {/* Bottom Formatting Toolbar */}
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '10px 14px',
-              borderBottom: '1px solid #F3F4F6',
-              backgroundColor: '#FAFAFA',
+              gap: '8px',
+              padding: '10px 18px',
+              borderTop: '1px solid #F1F5F9',
+              backgroundColor: '#FFFFFF',
               flexWrap: 'wrap',
-              color: '#6B7280',
+              color: '#64748B',
             }}
           >
-            <button type="button" title="Undo" style={{ color: '#6B7280', padding: '4px' }}>
-              <Undo size={15} />
+            <button type="button" title="Undo" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Undo size={16} />
             </button>
-            <button type="button" title="Redo" style={{ color: '#6B7280', padding: '4px' }}>
-              <Redo size={15} />
-            </button>
-
-            <div style={{ width: '1px', height: '16px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
-
-            <button type="button" title="Text size" style={{ fontSize: '12px', fontWeight: 700, padding: '2px 4px' }}>
-              TT ⇅
+            <button type="button" title="Redo" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Redo size={16} />
             </button>
 
-            <div style={{ width: '1px', height: '16px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+            <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0', margin: '0 4px' }} />
 
-            <button type="button" title="Bold" style={{ color: '#6B7280', padding: '4px' }}>
-              <Bold size={15} />
-            </button>
-            <button type="button" title="Italic" style={{ color: '#6B7280', padding: '4px' }}>
-              <Italic size={15} />
-            </button>
-            <button type="button" title="Underline" style={{ color: '#6B7280', padding: '4px' }}>
-              <Underline size={15} />
+            {/* Font Size indicator */}
+            <button
+              type="button"
+              title="Text size"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: '#64748B',
+                padding: '2px 6px',
+                cursor: 'pointer',
+              }}
+            >
+              <span>TT</span>
+              <span style={{ fontSize: '11px' }}>⇅</span>
             </button>
 
-            <div style={{ width: '1px', height: '16px', backgroundColor: '#E5E7EB', margin: '0 4px' }} />
+            <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0', margin: '0 4px' }} />
 
-            <button type="button" title="Align Left" style={{ color: '#6B7280', padding: '4px' }}>
-              <AlignLeft size={15} />
+            <button type="button" title="Bold" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Bold size={16} />
+            </button>
+            <button type="button" title="Italic" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Italic size={16} />
+            </button>
+            <button type="button" title="Underline" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Underline size={16} />
             </button>
 
-            <button type="button" title="Numbered List" style={{ color: '#6B7280', padding: '4px' }}>
-              <ListOrdered size={15} />
+            <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0', margin: '0 4px' }} />
+
+            <button
+              type="button"
+              title="Text Alignment"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                color: '#64748B',
+                padding: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              <AlignLeft size={16} />
+              <span style={{ fontSize: '11px' }}>⇅</span>
             </button>
-            <button type="button" title="Bullet List" style={{ color: '#6B7280', padding: '4px' }}>
-              <List size={15} />
+
+            <div style={{ width: '1px', height: '18px', backgroundColor: '#E2E8F0', margin: '0 4px' }} />
+
+            <button type="button" title="Numbered List" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <ListOrdered size={16} />
             </button>
-            <button type="button" title="Outdent" style={{ color: '#6B7280', padding: '4px' }}>
-              <Outdent size={15} />
+            <button type="button" title="Bullet List" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <List size={16} />
             </button>
-            <button type="button" title="Indent" style={{ color: '#6B7280', padding: '4px' }}>
-              <Indent size={15} />
+            <button type="button" title="Quote" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Quote size={16} />
             </button>
-            <button type="button" title="Quote" style={{ color: '#6B7280', padding: '4px' }}>
-              <Quote size={15} />
+            <button type="button" title="Link" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Link size={16} />
             </button>
-            <button type="button" title="Link" style={{ color: '#6B7280', padding: '4px' }}>
-              <Link size={15} />
-            </button>
-            <button type="button" title="Strikethrough" style={{ color: '#6B7280', padding: '4px' }}>
-              <Strikethrough size={15} />
+            <button type="button" title="Strikethrough" style={{ color: '#64748B', padding: '4px', cursor: 'pointer' }}>
+              <Strikethrough size={16} />
             </button>
           </div>
-
-          {/* Textarea */}
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Type Your Reply..."
-            rows={12}
-            style={{
-              width: '100%',
-              padding: '16px',
-              fontSize: '14px',
-              color: '#111827',
-              backgroundColor: '#FAFAFA',
-              border: 'none',
-              resize: 'vertical',
-              lineHeight: '1.6',
-            }}
-          />
         </div>
       </div>
 
@@ -744,11 +746,11 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
           style={{
             position: 'absolute',
             top: '70px',
-            right: '24px',
+            right: '28px',
             width: '260px',
             backgroundColor: '#FFFFFF',
             borderRadius: '14px',
-            border: '1px solid #E5E7EB',
+            border: '1px solid #E2E8F0',
             boxShadow: '0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.04)',
             padding: '18px 16px',
             zIndex: 40,
@@ -760,7 +762,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
             style={{
               fontSize: '14px',
               fontWeight: 700,
-              color: '#111827',
+              color: '#0F172A',
               marginBottom: '14px',
             }}
           >
@@ -773,7 +775,7 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              borderBottom: '1px solid #F3F4F6',
+              borderBottom: '1px solid #F1F5F9',
               paddingBottom: '12px',
               marginBottom: '14px',
             }}
@@ -787,80 +789,76 @@ export const ComposeView: React.FC<ComposeViewProps> = ({
               }}
               style={{
                 fontSize: '12.5px',
-                color: '#374151',
+                color: '#334155',
                 backgroundColor: 'transparent',
                 width: '100%',
+                border: 'none',
+                outline: 'none',
               }}
             />
-            <Calendar size={15} color="#9CA3AF" />
+            <Calendar size={15} color="#94A3B8" />
           </div>
 
           {/* Quick Presets list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '18px' }}>
             {['Tomorrow', 'Tomorrow, 10:00 AM', 'Tomorrow, 11:00 AM', 'Tomorrow, 3:00 PM'].map(
               (preset) => (
-                <button
+                <div
                   key={preset}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
+                  onClick={() => {
+                    setSelectedQuickPreset(preset);
+                    const now = new Date();
+                    const target = new Date(now);
+                    if (preset === 'Tomorrow') {
+                      target.setDate(target.getDate() + 1);
+                      target.setHours(9, 0, 0, 0);
+                    } else if (preset === 'Tomorrow, 10:00 AM') {
+                      target.setDate(target.getDate() + 1);
+                      target.setHours(10, 0, 0, 0);
+                    } else if (preset === 'Tomorrow, 11:00 AM') {
+                      target.setDate(target.getDate() + 1);
+                      target.setHours(11, 0, 0, 0);
+                    } else if (preset === 'Tomorrow, 3:00 PM') {
+                      target.setDate(target.getDate() + 1);
+                      target.setHours(15, 0, 0, 0);
+                    }
+                    setScheduledDateTime(target.toISOString().slice(0, 16));
+                  }}
                   style={{
-                    textAlign: 'left',
-                    fontSize: '12.5px',
-                    color: selectedQuickPreset === preset ? '#00A859' : '#4B5563',
+                    fontSize: '13px',
+                    color: selectedQuickPreset === preset ? '#00A859' : '#334155',
                     fontWeight: selectedQuickPreset === preset ? 600 : 400,
-                    padding: '3px 0',
+                    cursor: 'pointer',
+                    padding: '4px 6px',
+                    borderRadius: '6px',
+                    backgroundColor: selectedQuickPreset === preset ? '#E8F7EE' : 'transparent',
                   }}
                 >
                   {preset}
-                </button>
+                </div>
               )
             )}
           </div>
 
-          {/* Footer Actions */}
-          <div
+          {/* Schedule Confirmation Action Button */}
+          <button
+            onClick={() => setShowSendLater(false)}
             style={{
+              width: '100%',
+              height: '36px',
+              backgroundColor: '#00A859',
+              color: '#FFFFFF',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 600,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'flex-end',
-              gap: '12px',
-              paddingTop: '8px',
+              justifyContent: 'center',
+              cursor: 'pointer',
             }}
           >
-            <button
-              type="button"
-              onClick={() => setShowSendLater(false)}
-              style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: '#6B7280',
-              }}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowSendLater(false)}
-              style={{
-                padding: '5px 16px',
-                borderRadius: '9999px',
-                border: '1.5px solid #00A859',
-                backgroundColor: '#FFFFFF',
-                color: '#00A859',
-                fontSize: '12.5px',
-                fontWeight: 600,
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#E8F7EE';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#FFFFFF';
-              }}
-            >
-              Done
-            </button>
-          </div>
+            Done
+          </button>
         </div>
       )}
     </div>
