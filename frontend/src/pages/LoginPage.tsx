@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getGoogleAuthUrl } from '../services/api';
+import { OnbLogo } from '../components/OnbLogo';
 
 interface LoginPageProps {
   onLoginSuccess: (token: string, user: any) => void;
@@ -61,13 +62,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
           alignItems: 'center',
         }}
       >
+        {/* ONB Pixel Brand Logo with subtle Grid */}
+        <div style={{ marginBottom: '24px' }}>
+          <OnbLogo size="md" showGrid={true} style={{ border: '1px solid #F3F4F6' }} />
+        </div>
+
         {/* Title */}
         <h1
           style={{
-            fontSize: '26px',
+            fontSize: '24px',
             fontWeight: 700,
             color: '#111827',
-            marginBottom: '28px',
+            marginBottom: '24px',
           }}
         >
           Login

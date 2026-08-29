@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, Send, ChevronDown, LogOut, CheckCircle2, Link2, Activity } from 'lucide-react';
 import type { UserProfile, ConnectedAccount, HealthStatus } from '../services/api';
+import { OnbLogo } from './OnbLogo';
 
 interface SidebarProps {
   activeTab: 'scheduled' | 'sent';
@@ -50,20 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }}
     >
       {/* ONB Brand Logo */}
-      <div style={{ marginBottom: '28px', paddingLeft: '8px' }}>
-        <div
-          style={{
-            fontSize: '28px',
-            fontWeight: 900,
-            letterSpacing: '-1px',
-            color: '#111827',
-            display: 'flex',
-            alignItems: 'center',
-            fontFamily: 'Inter, sans-serif',
-          }}
-        >
-          ONB
-        </div>
+      <div style={{ marginBottom: '24px', paddingLeft: '6px' }}>
+        <OnbLogo size="sm" />
       </div>
 
       {/* User Profile Pill Card */}
