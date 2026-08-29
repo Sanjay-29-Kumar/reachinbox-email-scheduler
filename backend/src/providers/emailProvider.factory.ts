@@ -1,6 +1,7 @@
 import { EmailProvider } from './emailProvider.interface';
 import { MockEmailProvider } from './mockProvider';
 import { ResendEmailProvider } from './resendProvider';
+import { GmailEmailProvider } from './gmailProvider';
 
 let activeProviderInstance: EmailProvider | null = null;
 
@@ -15,6 +16,12 @@ export function getEmailProvider(): EmailProvider {
     case 'mock':
       console.log('[EmailProviderFactory] Instantiating MockEmailProvider');
       activeProviderInstance = new MockEmailProvider();
+      break;
+
+    case 'gmail':
+    case 'google':
+      console.log('[EmailProviderFactory] Instantiating GmailEmailProvider');
+      activeProviderInstance = new GmailEmailProvider();
       break;
 
     case 'resend':

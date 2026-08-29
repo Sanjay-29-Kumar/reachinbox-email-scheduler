@@ -2,6 +2,8 @@ import { Router } from 'express';
 import {
   googleLoginHandler,
   googleCallbackHandler,
+} from '../controllers/googleAuth.controller';
+import {
   getMeHandler,
   logoutHandler,
 } from '../controllers/auth.controller';

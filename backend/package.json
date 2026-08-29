@@ -13,7 +13,7 @@
     "test:metrics": "npx tsx src/scripts/testMetrics.ts",
     "test:provider": "npx tsx src/scripts/testEmailProvider.ts",
     "test:health": "npx tsx src/scripts/testHealth.ts",
-    "test:oauth": "npx tsx src/scripts/testOAuth.ts",
+    "test:oauth": "npx tsx src/scripts/testGoogleOAuth.ts",
     "test:slack": "npx tsx src/scripts/testSlack.ts",
     "build": "tsc",
     "start": "node dist/server.js",

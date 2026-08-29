@@ -22,14 +22,14 @@ Infrastructure:
 - Docker
 
 Integrations:
-- Google OAuth 2.0
-- Slack Incoming Webhook
-- Resend HTTP API Provider / Mock Testing Provider
+- Google OAuth 2.0 (Gmail API message sending)
+- Slack Incoming Webhook (#all-reachinbox-scheduler)
+- Resend HTTP API Provider / Mock Testing Provider / Gmail Provider
 
 COMPLETE EMAIL SCHEDULING FLOW
 
 User
-→ Google Login
+→ Google Login / Connect Gmail
 → Dashboard
 → Compose New Email
 → Upload CSV/TXT recipients
@@ -44,7 +44,7 @@ User
 → Worker picks up job
 → Redis-backed hourly rate limit checked
 → If limit available:
-    → Email sent through configured EmailProvider (Resend API / Mock)
+    → Email sent through configured EmailProvider (Gmail API / Resend API / Mock)
     → Database updated to SENT
     → Elasticsearch index updated
     → Prometheus metrics updated
@@ -59,6 +59,7 @@ PostgreSQL is the source of truth.
 
 Store:
 - Users (Google OAuth profile)
+- ConnectedAccounts (Google/Gmail refresh tokens)
 - Senders
 - Email jobs
 - Status
@@ -118,7 +119,7 @@ SLACK NOTIFICATION FLOW
 
 Webhook configured via SLACK_WEBHOOK_URL
 → Email lifecycle triggers (SCHEDULED, SENT, FAILED, CANCELLED, RATE_LIMITED)
-→ Backend sends asynchronous HTTP webhook notification
+→ Backend sends asynchronous HTTP webhook notification to #all-reachinbox-scheduler
 → If Slack is not configured or fails, scheduler continues without breaking.
 
 HIGH LOAD BEHAVIOR
@@ -153,7 +154,7 @@ FINAL SYSTEM ARCHITECTURE
                     ┌──────────┴──────────┐
                     ▼                     ▼
              EmailProvider          Slack Webhook
-             (Resend API / Mock)
+     (Gmail / Resend / Mock)
 
 MODULE 1 — Infrastructure
 - [x] Express + TypeScript backend
@@ -239,15 +240,20 @@ MODULE 10 — Backend Production Hardening & Health Checks
 - [x] Graceful shutdown handling for Express server and BullMQ worker on SIGINT/SIGTERM
 - [x] Automated health and hardening test suite (`npm run test:health`)
 
-MODULE 11 — Google OAuth + Slack Integration
-- [x] Google OAuth 2.0 service (`backend/src/services/auth.service.ts`) with authorization URL generation and token exchange
-- [x] Google User upsert & PostgreSQL persistence with auto-sender creation
-- [x] JWT Session generation & verification with `authenticateUser` middleware
-- [x] Auth routes (`GET /api/auth/google`, `GET /api/auth/google/callback`, `GET /api/auth/me`, `POST /api/auth/logout`)
-- [x] Slack Incoming Webhook service (`backend/src/services/slack.service.ts`) with safe non-blocking error isolation
-- [x] Slack event notifications across email lifecycle (SCHEDULED, SENT, FAILED, CANCELLED, RATE_LIMITED)
-- [x] Automated OAuth test suite (`npm run test:oauth`)
+MODULE 11 — Slack Notification Integration
+- [x] Slack Incoming Webhook service (`backend/src/services/slack.service.ts`) with dedicated lifecycle functions
+- [x] Slack event notifications across email lifecycle (SCHEDULED, SENT, FAILED, CANCELLED, RATE_LIMITED) with non-blocking error isolation
 - [x] Automated Slack webhook test suite (`npm run test:slack`)
+- [x] Live Slack verification to #all-reachinbox-scheduler
+
+MODULE 12 — Google OAuth Gmail Account Connection
+- [x] ConnectedAccount database model in schema.prisma with refresh token persistence
+- [x] Google OAuth 2.0 authorization with `https://www.googleapis.com/auth/gmail.send` scope and CSRF state parameter
+- [x] `GET /api/auth/google`, `GET /api/auth/google/callback`, `GET /api/auth/me`, `POST /api/auth/logout`
+- [x] Connected accounts management endpoints (`GET /api/accounts`, `DELETE /api/accounts/:id`) with zero secret leakage
+- [x] `GmailEmailProvider` using official Gmail REST API (`messages.send`) with Base64URL RFC 2822 MIME formatting
+- [x] Dynamic `EMAIL_PROVIDER=gmail` support in `emailProvider.factory.ts`
+- [x] Automated Google OAuth & Gmail API test suite (`npm run test:oauth`)
 
 CURRENT PROJECT STATUS
 
@@ -257,13 +263,14 @@ Completed:
 - Redis infrastructure
 - Elasticsearch infrastructure & full-text search API
 - Prometheus metrics & observability endpoint (`GET /metrics`)
-- Production Resend HTTP API Email Provider & Mock Provider
+- Production Resend, Gmail API, and Mock Email Providers
 - BullMQ email scheduling queue
 - Retry & failure handling with exponential backoff
 - Cancel scheduled emails endpoint & worker guard
 - Distributed hourly rate limiting with atomic Lua script and job rescheduling
 - Backend Production Hardening, Health Checks (`GET /health`), CORS, and Graceful Shutdown
-- Google OAuth 2.0 Authentication & Slack Webhook Notifications
+- Slack Webhook Notifications to #all-reachinbox-scheduler
+- Google OAuth 2.0 Gmail Account Connection & Official Gmail API Delivery
 
 Next module:
 React Frontend Dashboard

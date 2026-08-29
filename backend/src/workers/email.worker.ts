@@ -8,7 +8,7 @@ import prisma from '../lib/prisma';
 import { getEmailProvider } from '../providers/emailProvider.factory';
 import { consumeRateLimitQuota, getMsUntilNextHour } from '../lib/rateLimiter';
 import { updateEmailJobInElasticsearch } from '../services/elasticsearch.service';
-import { notifySlack } from '../services/slack.service';
+import { notifyEmailSent, notifyEmailFailed, notifyEmailRateLimited } from '../services/slack.service';
 import {
   incrementEmailsSent,
   incrementEmailsFailed,
@@ -108,13 +108,12 @@ export const emailWorker = new Worker<EmailJobData>(
         bullJobId: String(rescheduledBullJob.id),
       }).catch((esErr) => console.warn(`[ES Warning] Rate limit reschedule sync failed for ${emailJob.id}:`, esErr));
 
-      // Notify Slack about rate limit reschedule
-      notifySlack({
-        event: 'RATE_LIMITED',
+      // Notify Slack about rate limit reschedule (non-blocking)
+      notifyEmailRateLimited({
         recipientEmail: emailJob.recipientEmail,
         subject: emailJob.subject,
         emailJobId: emailJob.id,
-        extraDetails: `Quota exceeded for sender. Rescheduled for ${nextExecutionDate.toISOString()}`,
+        rateLimitInfo: `Quota exceeded (${maxEmailsPerHour}/hr). Rescheduled for ${nextExecutionDate.toISOString()}`,
       }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
 
       return; // Exit cleanly without throwing an error
@@ -182,12 +181,11 @@ export const emailWorker = new Worker<EmailJobData>(
       }).catch((esErr) => console.warn(`[ES Warning] SENT sync failed for ${emailJobId}:`, esErr));
 
       // Notify Slack of successful email send (Non-blocking)
-      notifySlack({
-        event: 'SENT',
+      notifyEmailSent({
         recipientEmail: emailJob.recipientEmail,
         subject: emailJob.subject,
         emailJobId: emailJob.id,
-        extraDetails: `Delivered via ${sendResult.provider} (MsgID: ${sendResult.messageId})`,
+        provider: sendResult.provider,
       }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
 
       console.log(`[Worker] Successfully sent email (Attempt ${currentAttempt}/${maxAttempts}) and updated EmailJob ${emailJobId} to SENT.`);
@@ -233,12 +231,12 @@ export const emailWorker = new Worker<EmailJobData>(
         }).catch((esErr) => console.warn(`[ES Warning] FAILED sync failed for ${emailJobId}:`, esErr));
 
         // Notify Slack of permanent failure (Non-blocking)
-        notifySlack({
-          event: 'FAILED',
+        notifyEmailFailed({
           recipientEmail: emailJob.recipientEmail,
           subject: emailJob.subject,
           emailJobId: emailJob.id,
-          extraDetails: `Failed after ${maxAttempts} attempts. Error: ${errorMessage}`,
+          failureReason: errorMessage,
+          attempts: maxAttempts,
         }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
       }
 

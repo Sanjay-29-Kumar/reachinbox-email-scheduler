@@ -1,35 +1,9 @@
-export interface SlackNotificationOptions {
-  event: 'SCHEDULED' | 'SENT' | 'FAILED' | 'CANCELLED' | 'RATE_LIMITED';
-  recipientEmail: string;
-  subject: string;
-  emailJobId: string;
-  extraDetails?: string;
-}
-
-export async function notifySlack(textOrOptions: string | SlackNotificationOptions): Promise<boolean> {
+export async function sendSlackNotification(message: string): Promise<boolean> {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
 
   if (!webhookUrl || webhookUrl.trim() === '') {
     // Slack integration is optional. Safely no-op when not configured.
     return false;
-  }
-
-  let textMessage = '';
-
-  if (typeof textOrOptions === 'string') {
-    textMessage = textOrOptions;
-  } else {
-    const { event, recipientEmail, subject, emailJobId, extraDetails } = textOrOptions;
-    const emojiMap: Record<string, string> = {
-      SCHEDULED: '🕒',
-      SENT: '✅',
-      FAILED: '❌',
-      CANCELLED: '🚫',
-      RATE_LIMITED: '⏳',
-    };
-
-    const emoji = emojiMap[event] || '📢';
-    textMessage = `${emoji} *Email ${event}*\n• *Recipient:* \`${recipientEmail}\`\n• *Subject:* "${subject}"\n• *Job ID:* \`${emailJobId}\`${extraDetails ? `\n• *Details:* ${extraDetails}` : ''}`;
   }
 
   try {
@@ -39,13 +13,12 @@ export async function notifySlack(textOrOptions: string | SlackNotificationOptio
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: textMessage,
+        text: message,
       }),
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.warn(`[Slack Warning] Slack webhook returned HTTP ${response.status}: ${errText}`);
+      console.warn(`[Slack Warning] Slack webhook returned HTTP ${response.status}`);
       return false;
     }
 
@@ -55,4 +28,55 @@ export async function notifySlack(textOrOptions: string | SlackNotificationOptio
     // Never let Slack failure throw to caller
     return false;
   }
+}
+
+export async function notifyEmailScheduled(data: {
+  recipientEmail: string;
+  subject: string;
+  scheduledAt: string | Date;
+  emailJobId: string;
+}): Promise<boolean> {
+  const dateStr = typeof data.scheduledAt === 'string' ? data.scheduledAt : data.scheduledAt.toISOString();
+  const message = `🕒 *Email Scheduled*\n• *Recipient:* \`${data.recipientEmail}\`\n• *Subject:* "${data.subject}"\n• *Scheduled At:* ${dateStr}\n• *Job ID:* \`${data.emailJobId}\``;
+  return sendSlackNotification(message);
+}
+
+export async function notifyEmailSent(data: {
+  recipientEmail: string;
+  subject: string;
+  emailJobId: string;
+  provider: string;
+}): Promise<boolean> {
+  const message = `✅ *Email Sent*\n• *Recipient:* \`${data.recipientEmail}\`\n• *Subject:* "${data.subject}"\n• *Job ID:* \`${data.emailJobId}\`\n• *Provider:* ${data.provider}`;
+  return sendSlackNotification(message);
+}
+
+export async function notifyEmailFailed(data: {
+  recipientEmail: string;
+  subject: string;
+  emailJobId: string;
+  failureReason: string;
+  attempts: number;
+}): Promise<boolean> {
+  const message = `❌ *Email Failed*\n• *Recipient:* \`${data.recipientEmail}\`\n• *Subject:* "${data.subject}"\n• *Job ID:* \`${data.emailJobId}\`\n• *Attempts:* ${data.attempts}\n• *Reason:* ${data.failureReason}`;
+  return sendSlackNotification(message);
+}
+
+export async function notifyEmailCancelled(data: {
+  recipientEmail: string;
+  subject: string;
+  emailJobId: string;
+}): Promise<boolean> {
+  const message = `🚫 *Email Cancelled*\n• *Recipient:* \`${data.recipientEmail}\`\n• *Subject:* "${data.subject}"\n• *Job ID:* \`${data.emailJobId}\``;
+  return sendSlackNotification(message);
+}
+
+export async function notifyEmailRateLimited(data: {
+  recipientEmail: string;
+  subject: string;
+  emailJobId: string;
+  rateLimitInfo: string;
+}): Promise<boolean> {
+  const message = `⏳ *Rate Limited*\n• *Recipient:* \`${data.recipientEmail}\`\n• *Subject:* "${data.subject}"\n• *Job ID:* \`${data.emailJobId}\`\n• *Details:* ${data.rateLimitInfo}`;
+  return sendSlackNotification(message);
 }

@@ -2,6 +2,7 @@ import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import emailRoutes from './routes/email.routes';
 import authRoutes from './routes/auth.routes';
+import accountRoutes from './routes/account.routes';
 import { getMetricsText, metricsRegistry } from './lib/metrics';
 import { getHealthHandler } from './controllers/health.controller';
 
@@ -38,6 +39,9 @@ app.get('/metrics', async (req: Request, res: Response) => {
 
 // Authentication Routes
 app.use('/api/auth', authRoutes);
+
+// Connected Account Routes
+app.use('/api/accounts', accountRoutes);
 
 // Email API Routes
 app.use('/api/emails', emailRoutes);

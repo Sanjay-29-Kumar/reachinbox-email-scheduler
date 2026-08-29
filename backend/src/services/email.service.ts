@@ -2,7 +2,7 @@ import prisma from '../lib/prisma';
 import { emailQueue } from '../queues/email.queue';
 import { indexEmailJob, updateEmailJobInElasticsearch } from './elasticsearch.service';
 import { incrementEmailsScheduled, incrementEmailsCancelled } from '../lib/metrics';
-import { notifySlack } from './slack.service';
+import { notifyEmailScheduled, notifyEmailCancelled } from './slack.service';
 
 export const EmailJobStatus = {
   SCHEDULED: 'SCHEDULED',
@@ -123,12 +123,11 @@ export async function scheduleEmail(input: ScheduleEmailInput) {
     }
 
     // 9. Notify Slack (Side effect - non-blocking and safe)
-    notifySlack({
-      event: 'SCHEDULED',
+    notifyEmailScheduled({
       recipientEmail: updatedJob.recipientEmail,
       subject: updatedJob.subject,
+      scheduledAt: scheduledDate,
       emailJobId: updatedJob.id,
-      extraDetails: `Scheduled for ${scheduledDate.toISOString()}`,
     }).catch((slackErr) => console.warn('[Slack Error] Non-blocking notification failed:', slackErr));
 
     return updatedJob;
@@ -201,8 +200,7 @@ export async function cancelEmailJob(emailJobId: string) {
   }
 
   // 7. Notify Slack (Side effect - non-blocking and safe)
-  notifySlack({
-    event: 'CANCELLED',
+  notifyEmailCancelled({
     recipientEmail: cancelledJob.recipientEmail,
     subject: cancelledJob.subject,
     emailJobId: cancelledJob.id,
